@@ -134,8 +134,13 @@ net_build <- function(d, spec) {
       ok <- stats::complete.cases(inc$m) & !is.na(w_all)
       m <- inc$m[ok, , drop = FALSE]
       keep <- colSums(m) > 0
+      if (sum(keep) < 2) {
+        vacias <- names(m)[!keep]
+        stop("Hacen falta al menos dos opciones con respuestas para dibujar la red",
+             if (length(vacias)) paste0(". Sin ninguna respuesta: ", paste(utils::head(vacias, 8), collapse = ", "),
+                                        ". Revisa en Datos qué valor cuenta como «marcado» en el conjunto."), ".")
+      }
       m <- m[, keep, drop = FALSE]
-      if (ncol(m) < 2) stop("Hacen falta al menos dos opciones con respuestas para dibujar la red.")
       nodes <- data.frame(nombre = names(m), grupo = inc$grupo[keep], check.names = FALSE)
       do.call(netCoin::allNet, c(compact(list(
         incidences = m, weight = if (!is.null(w)) w_all[ok],

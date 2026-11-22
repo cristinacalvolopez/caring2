@@ -143,3 +143,46 @@ test_that("el script de R reproduce los conjuntos", {
   expect_equal(unname(obtenido[-(1:5), ]), unname(as.matrix(esperado[-(1:5), ])))
   expect_equal(sort(colnames(env$conjuntos$menc)), sort(names(mr_incidences(x, mrsets(x)$menc))))
 })
+
+test_that("SPSS con codificaciones mezcladas: el valor marcado cuenta por etiqueta y por código", {
+  set.seed(2); n <- 300
+  raw <- data.frame(
+    p5_1 = haven::labelled(ifelse(runif(n) < .4, 1, 2), c("Sí" = 1, "No" = 2), label = "Televisión"),
+    p5_2 = haven::labelled(c(ifelse(runif(n - 3) < .4, 1, 2), 9, 9, 9), c("Sí" = 1, "No" = 2), label = "Prensa"),
+    p5_3 = haven::labelled(ifelse(runif(n) < .3, 1, NA), c("Sí" = 1), label = "Radio"))
+  f <- tempfile(fileext = ".sav"); haven::write_sav(raw, f)
+  d <- read_any(f)
+  expect_true(is.factor(d$p5_1)); expect_true(is.numeric(d$p5_2))      # la mezcla que provocaba el error
+  x <- apply_recipe(d, list(list(op = "mrset", name = "m", type = "dicotomias", vars = c("p5_1", "p5_2", "p5_3"), value = "Sí")))
+  inc <- mr_incidences(x, mrsets(x)$m)
+  expect_true(all(colSums(inc, na.rm = TRUE) > 0))
+  expect_equal(sum(inc$Prensa, na.rm = TRUE), sum(raw$p5_2 == 1))
+  expect_true(inherits(net_build(x, list(type = "multiple", vars = "mr:m")), "netCoin"))
+  # los códigos sobreviven a un filtro
+  y <- apply_recipe(d, list(list(op = "filter", expr = "!is.na(p5_1)"),
+                            list(op = "mrset", name = "m", type = "dicotomias", vars = c("p5_1", "p5_2"), value = "Sí")))
+  expect_true(all(colSums(mr_incidences(y, mrsets(y)$m), na.rm = TRUE) > 0))
+  # y el mensaje dice qué opciones están vacías cuando de verdad lo están
+  z <- apply_recipe(d, list(list(op = "mrset", name = "m", type = "dicotomias", vars = c("p5_1", "p5_2"), value = "No")))
+  expect_length(mr_empty_options(z, mrsets(z)$m)$opciones, 0)
+})
+
+test_that("si todas las variables comparten etiqueta, las opciones se nombran por variable", {
+  set.seed(1); n <- 200
+  raw <- as.data.frame(setNames(lapply(1:4, function(j) haven::labelled(ifelse(runif(n) < .4, 1, NA), c("Sí" = 1),
+                                                                        label = "¿Qué medios usa?")), paste0("p5_", 1:4)))
+  f <- tempfile(fileext = ".sav"); haven::write_sav(raw, f)
+  x <- apply_recipe(read_any(f), list(list(op = "mrset", name = "m", type = "dicotomias", vars = paste0("p5_", 1:4), value = "Sí")))
+  expect_equal(names(mr_incidences(x, mrsets(x)$m)), paste0("p5_", 1:4))
+  d2 <- data.frame(a = factor(c("Sí", "No")), b = factor(c("No", "Sí")), c = factor(c("Sí", "Sí")))
+  attr(d2$a, "label") <- "Medios"; attr(d2$b, "label") <- "Medios"; attr(d2$c, "label") <- "Radio"
+  expect_equal(mr_option_names(d2, c("a", "b", "c")), c("Medios (a)", "Medios (b)", "Radio"))
+})
+
+test_that("mensaje claro si la red se queda sin opciones", {
+  d <- data.frame(a = factor(c("Sí", "No", "No")), b = factor(c("No", "No", "No"), levels = c("Sí", "No")))
+  attr(d$a, "label") <- "Uno"; attr(d$b, "label") <- "Dos"
+  x <- apply_recipe(d, list(list(op = "mrset", name = "m", type = "dicotomias", vars = c("a", "b"), value = "Sí")))
+  expect_error(net_build(x, list(type = "multiple", vars = "mr:m")), "Sin ninguna respuesta: Dos")
+  expect_equal(mr_empty_options(x, mrsets(x)$m)$opciones, "Dos")
+})

@@ -137,10 +137,14 @@ apply_step <- function(d, s) {
 # Selecciona filas conservando las etiquetas de las variables.
 subset_rows <- function(d, rows) {
   labs <- lapply(d, attr, "label", exact = TRUE)
+  codes <- lapply(d, attr, "codes", exact = TRUE)
   sets <- attr(d, "mrsets", exact = TRUE)
   out <- d[rows, , drop = FALSE]
   attr(out, "mrsets") <- sets
-  for (v in names(out)) if (!is.null(labs[[v]])) attr(out[[v]], "label") <- labs[[v]]
+  for (v in names(out)) {
+    if (!is.null(labs[[v]])) attr(out[[v]], "label") <- labs[[v]]
+    if (!is.null(codes[[v]])) attr(out[[v]], "codes") <- codes[[v]]
+  }
   rownames(out) <- NULL
   out
 }

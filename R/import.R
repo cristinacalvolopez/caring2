@@ -107,13 +107,16 @@ standardize_data <- function(d) {
   for (v in names(d)) {
     x <- d[[v]]
     lab <- attr(x, "label", exact = TRUE)
+    codes <- NULL
     if (inherits(x, "haven_labelled")) {
       labs <- attr(x, "labels", exact = TRUE)
       vals <- unique(stats::na.omit(as.vector(haven::zap_labels(x))))
       if (length(labs) && length(vals) && all(vals %in% labs)) {
         x <- haven::as_factor(x, levels = "labels")
         x <- droplevels_keep(x, labs)
+        codes <- stats::setNames(as.character(unname(labs)), names(labs))   # etiqueta -> código original
       } else {
+        codes <- if (length(labs)) stats::setNames(as.character(unname(labs)), names(labs))
         x <- as.vector(haven::zap_labels(x))
       }
     }
@@ -135,6 +138,7 @@ standardize_data <- function(d) {
     attributes_clean <- !(is.factor(x) || inherits(x, c("Date", "POSIXct")))
     if (attributes_clean) attributes(x) <- NULL
     if (!is.null(lab) && nzchar(lab)) attr(x, "label") <- as.character(lab)
+    if (length(codes)) attr(x, "codes") <- codes
     d[[v]] <- x
   }
   rownames(d) <- NULL

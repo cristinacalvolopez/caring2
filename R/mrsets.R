@@ -12,6 +12,45 @@ mr_types <- c("Dicotomías (una variable por opción)" = "dicotomias",
 
 mrsets <- function(d) attr(d, "mrsets", exact = TRUE) %||% list()
 
+# Valores que significan lo mismo que el elegido: "Sí" y su código original (1), en
+# cualquiera de las variables. Así cuenta igual una variable leída como categórica
+# (Sí/No) y otra que quedó numérica (1/2) por tener algún valor sin etiqueta.
+mr_equivalent_values <- function(d, vars, value) {
+  out <- value
+  for (v in vars) {
+    codes <- attr(d[[v]], "codes", exact = TRUE)
+    if (length(codes)) {
+      out <- c(out, codes[names(codes) == value], names(codes)[codes == value])
+    }
+  }
+  num <- suppressWarnings(as.numeric(out))
+  out <- c(out, as.character(num[!is.na(num)]))      # "1" y "1.0" son lo mismo
+  unique(out[!is.na(out) & nzchar(out)])
+}
+
+# Nombres de las opciones de un conjunto de dicotomías: la etiqueta de cada variable;
+# si varias comparten etiqueta (suele ser el texto de la pregunta), el nombre de la variable.
+mr_option_names <- function(d, vars) {
+  labs <- vapply(vars, function(v) var_label(d, v), "")
+  dup <- duplicated(labs) | duplicated(labs, fromLast = TRUE)
+  if (all(dup)) return(unname(vars))
+  labs[dup] <- paste0(labs[dup], " (", vars[dup], ")")
+  unname(labs)
+}
+
+# Variables de un conjunto que no tienen ninguna respuesta marcada (para avisar).
+mr_empty_options <- function(d, set) {
+  m <- mr_incidences(d, set)
+  vacias <- names(m)[colSums(m, na.rm = TRUE) == 0]
+  if (!length(vacias) || set$type != "dicotomias") return(list(opciones = vacias, detalle = character()))
+  idx <- match(vacias, names(m))
+  detalle <- vapply(set$vars[idx], function(v) {
+    vals <- if (is.factor(d[[v]])) levels(droplevels(d[[v]])) else as.character(sort(unique(stats::na.omit(d[[v]]))))
+    paste0(v, " (valores: ", paste(utils::head(vals, 6), collapse = ", "), ")")
+  }, "")
+  list(opciones = vacias, detalle = unname(detalle))
+}
+
 mr_label <- function(set) if (nzchar(set$label %||% "")) set$label else set$name
 
 # Valida y guarda un conjunto en los datos (lo usa apply_step).
@@ -25,14 +64,16 @@ mr_add <- function(d, s) {
   for (v in vars) need_var(d, v)
   if (s$type %in% c("dicotomias", "categorias") && length(vars) < 2) stop("Un conjunto necesita al menos dos variables.")
   if (s$type == "texto" && length(vars) != 1) stop("En un conjunto de texto se elige una sola variable.")
+  values <- NULL
   if (s$type == "dicotomias") {
     if (is.null(s$value) || !nzchar(as.character(s$value))) stop("Indica qué valor cuenta como «marcado» (por ejemplo, Sí o 1).")
-    hit <- vapply(vars, function(v) any(as.character(d[[v]]) == as.character(s$value), na.rm = TRUE), logical(1))
+    values <- mr_equivalent_values(d, vars, as.character(s$value))
+    hit <- vapply(vars, function(v) any(as.character(d[[v]]) %in% values, na.rm = TRUE), logical(1))
     if (!any(hit)) stop("Ninguna de las variables tiene el valor «", s$value, "».")
   }
   sets <- mrsets(d)
   sets[[s$name]] <- list(name = s$name, label = s$label %||% "", type = s$type, vars = vars,
-                         value = if (s$type == "dicotomias") as.character(s$value),
+                         value = if (s$type == "dicotomias") as.character(s$value), values = values,
                          sep = if (s$type == "texto") (s$sep %||% ";"))
   attr(d, "mrsets") <- sets
   d
@@ -62,12 +103,13 @@ mr_drop_vars <- function(d, vars) {
 mr_incidences <- function(d, set) {
   vars <- set$vars
   if (set$type == "dicotomias") {
+    marcado <- set$values %||% mr_equivalent_values(d, vars, set$value)
     m <- vapply(vars, function(v) {
       x <- as.character(d[[v]])
-      ifelse(is.na(x), NA_integer_, as.integer(x == set$value))
+      ifelse(is.na(x), NA_integer_, as.integer(x %in% marcado))
     }, integer(nrow(d)))
     m <- matrix(m, nrow = nrow(d))
-    colnames(m) <- vapply(vars, function(v) var_label(d, v), "")
+    colnames(m) <- mr_option_names(d, vars)
     all_na <- rowSums(!is.na(m)) == 0
     m[is.na(m)] <- 0L
     m[all_na, ] <- NA

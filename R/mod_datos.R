@@ -398,10 +398,18 @@ mod_datos_server <- function(id, ctx) {
       if (!nzchar(s$name)) s$name <- "vista_previa"
       x <- tryCatch(mr_add(data(), s), error = function(e) e)
       if (inherits(x, "error")) return(div(class = "c-msg-error", conditionMessage(x)))
-      f <- mr_freq(x, mrsets(x)[[s$name]])
+      set <- mrsets(x)[[s$name]]
+      f <- mr_freq(x, set)
+      vacias <- mr_empty_options(x, set)
       tab <- data.frame(Opción = f$opcion, n = fmt_int(round(f$n)), `% de casos` = fmt_pct(f$pct_casos), check.names = FALSE)
-      div(tags$strong("Vista previa"), span(class = "small-2", paste0(" · ", fmt_int(round(attr(f, "casos"))), " casos con respuesta")),
-          div(style = "max-height:260px; overflow:auto", html_table(tab)))
+      tagList(
+        if (length(vacias$opciones)) div(class = "alert alert-warning py-2",
+          tags$strong(if (length(vacias$opciones) == 1) "Una opción no tiene ninguna respuesta marcada"
+                      else paste(length(vacias$opciones), "opciones no tienen ninguna respuesta marcada")),
+          if (length(vacias$detalle)) tagList(": ", paste(vacias$detalle, collapse = "; "),
+            ". Comprueba que el valor elegido es el que significa «marcado» en todas las variables.")),
+        div(tags$strong("Vista previa"), span(class = "small-2", paste0(" · ", fmt_int(round(attr(f, "casos"))), " casos con respuesta")),
+            div(style = "max-height:260px; overflow:auto", html_table(tab))))
     })
 
     observeEvent(input$mr_create, {
