@@ -259,6 +259,8 @@ help_text <- function() {
       tags$li(tags$strong("Redes. "), "Elige qué quieres ver (coincidencias, correlaciones, regresión…) y las variables. La red es interactiva: arrastra nodos, busca, filtra y exporta."),
       tags$li(tags$strong("Informes. "), "Con «+ Añadir al informe» guardas gráficos, tablas y redes. En Informes los colocas en diapositivas o en un informe y los exportas a PowerPoint, Word, PDF o HTML.")
     ),
-    p(class = "c-hint", "Las redes se calculan con el paquete de R netCoin, del proyecto netcoin de la Universidad de Salamanca.")
+    p(class = "c-hint", "Las redes se calculan con el paquete de R netCoin, del proyecto netCoin de la Universidad de Salamanca. ",
+      "Más información en ", tags$a(href = "https://sociocav.usal.es/blog/nca/", target = "_blank", rel = "noopener", "sociocav.usal.es/blog/nca"),
+      ". Dudas y sugerencias: ", tags$a(href = "mailto:gas@usal.es", "gas@usal.es"), ".")
   )
 }

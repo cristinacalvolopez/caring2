@@ -2,7 +2,8 @@
 
 Aplicación web, hecha en R con Shiny, que convierte una base de datos en una red
 interactiva de coincidencias. Es la nueva versión de
-[caring.usal.es](https://caring.usal.es) (proyecto netcoin, Universidad de Salamanca).
+[caring.usal.es](https://caring.usal.es), del
+[proyecto netCoin](https://sociocav.usal.es/blog/nca/) (Universidad de Salamanca).
 
 En un mismo proyecto se puede:
 
@@ -96,6 +97,20 @@ inst/extdata/  datos de demostración
 tests/         pruebas automáticas
 app.R          punto de entrada (shiny::runApp)
 ```
+
+## Equipo
+
+CARING es parte del [proyecto netCoin](https://sociocav.usal.es/blog/nca/)
+(Análisis reticular de coincidencias) de la Universidad de Salamanca. Las redes se
+calculan con el paquete [netCoin](https://CRAN.R-project.org/package=netCoin), de
+Modesto Escobar, David Barrios, Carlos Prieto, Luis Martínez-Uribe, Pablo
+Cabrera-Álvarez y Cristina Calvo-López.
+
+**Contacto:** [gas@usal.es](mailto:gas@usal.es) ·
+**Más sobre el proyecto:** https://sociocav.usal.es/blog/nca/
+
+El CARING original contó con financiación de la Universidad de Salamanca, la Junta de
+Castilla y León, el Fondo Social Europeo y el Ministerio de Economía y Empresa.
 
 ## Licencia
 

@@ -13,7 +13,9 @@ mod_login_ui <- function(id, notice = NULL, reset_token = NULL, registro_abierto
         tags$ol(class = "steps4", lapply(steps, function(s) tags$li(
           span(class = "n", s[1]), tags$strong(s[2]), span(style = "font-size:14px", s[3]))))
       ),
-      span(style = "font-size:14px", "Proyecto netcoin · Universidad de Salamanca")
+      span(style = "font-size:14px", "Proyecto netCoin · Universidad de Salamanca · ",
+           tags$a(href = "https://sociocav.usal.es/blog/nca/", target = "_blank", rel = "noopener",
+                  style = "color:#fff; text-decoration:underline", "Más sobre el proyecto"))
     ),
     div(class = "right",
       div(class = "box",

@@ -40,8 +40,9 @@ topbar <- function(user, active = "projects") {
 
 footer_bar <- function() {
   tags$footer(class = "c-footer",
-    span("© 2026 proyecto netcoin · Universidad de Salamanca"),
-    span(tags$a(href = "https://sociocav.usal.es/blog/nca/miembros-del-equipo/", target = "_blank", "Nuestro equipo"),
+    span("© 2026 proyecto netCoin · Universidad de Salamanca"),
+    span(tags$a(href = "https://sociocav.usal.es/blog/nca/", target = "_blank", rel = "noopener", "El proyecto"),
+         " · ", tags$a(href = "mailto:gas@usal.es", "Contacto: gas@usal.es"),
          " · ", tags$a(href = "#", onclick = "Shiny.setInputValue('show_privacy', Date.now()); return false;",
                        "Privacidad"))
   )
@@ -132,6 +133,8 @@ privacy_text <- function() {
       tags$li("Puedes descargar o borrar tus proyectos y tu cuenta en cualquier momento desde «Mi cuenta»."),
       tags$li("No usamos analítica de terceros ni compartimos datos con nadie.")
     ),
-    p(class = "small-2", "Si tus datos contienen información personal, eres responsable de tener la base legal para tratarlos (RGPD).")
+    p(class = "small-2", "Si tus datos contienen información personal, eres responsable de tener la base legal para tratarlos (RGPD)."),
+    p(class = "small-2", "Responsable: equipo CARING, proyecto netCoin (Universidad de Salamanca). Contacto: ",
+      tags$a(href = "mailto:gas@usal.es", "gas@usal.es"), ".")
   )
 }
