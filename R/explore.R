@@ -118,17 +118,21 @@ explore_one <- function(d, v, weight = NULL, chart = NULL) {
 
 # Dos variables -------------------------------------------------------------------------
 
-explore_two <- function(d, v1, v2, weight = NULL, pct = "col", chart = NULL) {
+explore_two <- function(d, v1, v2, weight = NULL, pct = "col", chart = NULL, counts = FALSE) {
   need_var(d, v1); need_var(d, v2)
   x <- d[[v1]]; y <- d[[v2]]
-  if (is.factor(x) && is.factor(y)) return(explore_catcat(d, v1, v2, weight, pct, chart))
+  if (is.factor(x) && is.factor(y)) return(explore_catcat(d, v1, v2, weight, pct, chart, counts))
   if (is.numeric(x) && is.factor(y)) return(explore_numcat(d, v1, v2, weight, chart))
   if (is.factor(x) && is.numeric(y)) return(explore_numcat(d, v2, v1, weight, chart))
   if (is.numeric(x) && is.numeric(y)) return(explore_numnum(d, v1, v2, weight, chart))
   stop("No se puede cruzar una variable de texto. Cambia su tipo en el paso Datos.")
 }
 
-explore_catcat <- function(d, v1, v2, weight, pct, chart) {
+# Tabla cruzada: v1 en filas, v2 en columnas.
+#   pct = "col": porcentajes verticales (cada columna suma 100 %)
+#   pct = "row": porcentajes horizontales (cada fila suma 100 %)
+#   pct = "total": sobre el total de casos
+explore_catcat <- function(d, v1, v2, weight, pct, chart, counts = FALSE) {
   w <- weights_of(d, weight)
   ok <- !is.na(d[[v1]]) & !is.na(d[[v2]])
   dd <- data.frame(a = droplevels(d[[v1]][ok]), b = droplevels(d[[v2]][ok]), w = w[ok])
@@ -138,16 +142,23 @@ explore_catcat <- function(d, v1, v2, weight, pct, chart) {
     col = sweep(ct, 2, colSums(ct), "/"),
     row = sweep(ct, 1, rowSums(ct), "/"),
     ct / n)
-  tab <- as.data.frame.matrix(matrix(fmt_pct(prop), nrow = nrow(ct), dimnames = dimnames(ct)))
-  tab <- cbind(stats::setNames(data.frame(rownames(ct)), var_label(d, v1)), tab)
-  marg <- if (pct == "col") colSums(ct) else NULL
+  cell <- function(pr, n) if (counts) paste0(fmt_pct(pr), " (", fmt_int(round(n)), ")") else fmt_pct(pr)
+  m <- matrix(cell(prop, ct), nrow = nrow(ct), dimnames = dimnames(ct))
+  rs <- rowSums(ct); cs <- colSums(ct)
   if (pct == "col") {
-    tot <- rowSums(ct) / n
-    tab$Total <- fmt_pct(tot)
-    tab <- rbind(tab, c("n", fmt_int(round(marg)), fmt_int(round(n))))
+    m <- cbind(m, Total = cell(rs / n, rs))
+    m <- rbind(m, Total = cell(rep(1, ncol(m)), c(cs, n)))          # cada columna suma 100 %
+    if (!counts) m <- rbind(m, n = fmt_int(round(c(cs, n))))
   } else if (pct == "row") {
-    tab$n <- fmt_int(round(rowSums(ct)))
+    m <- cbind(m, Total = cell(rep(1, nrow(ct)), rs))                          # cada fila suma 100 %
+    m <- rbind(m, Total = c(cell(cs / n, cs), cell(1, n)))
+    if (!counts) m <- cbind(m, n = fmt_int(round(c(rs, n))))
+  } else {
+    m <- cbind(m, Total = cell(rs / n, rs))
+    m <- rbind(m, Total = c(cell(cs / n, cs), cell(1, n)))
   }
+  tab <- cbind(stats::setNames(data.frame(rownames(m), check.names = FALSE), var_label(d, v1)),
+               as.data.frame(m, check.names = FALSE, stringsAsFactors = FALSE))
   rownames(tab) <- NULL
   test <- suppressWarnings(stats::chisq.test(ct, correct = FALSE))
   k <- min(dim(ct)) - 1
@@ -166,7 +177,8 @@ explore_catcat <- function(d, v1, v2, weight, pct, chart) {
   }
   p <- plot_catcat(pd, ct, pick_chart(chart, "catcat"), pct, xl, fl)
   list(title = paste(var_label(d, v1), "según", tolower(var_label(d, v2))),
-       subtitle = paste0(switch(pct, col = "% por columna", row = "% por fila", "% sobre el total"),
+       subtitle = paste0(var_label(d, v1), " en filas · ", var_label(d, v2), " en columnas · ",
+                         switch(pct, col = "% verticales (por columna)", row = "% horizontales (por fila)", "% sobre el total"),
                          " · n = ", fmt_int(round(n)), if (!is.null(weight) && nzchar(weight)) " · ponderado" else ""),
        table = tab, stats = stats_txt, plot = p)
 }

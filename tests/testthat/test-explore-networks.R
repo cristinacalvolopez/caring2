@@ -95,3 +95,29 @@ test_that("cada tipo de red tiene sus propias opciones y las usa", {
   }
   expect_true(inherits(suppressWarnings(net_build(d, list(type = "loglineal", vars = c("genero", "internet", "prensa"), order = 3))), "netCoin"))
 })
+
+test_that("tabla cruzada: porcentajes verticales, horizontales y totales, en ambos sentidos", {
+  d <- read_any(demo_sav())
+  num <- function(x) as.numeric(gsub(",", ".", gsub(" %.*| \\(.*", "", x)))
+  r <- explore_two(d, "internet", "educacion", pct = "col")
+  expect_equal(r$table[[1]], c("Sí", "No", "Total", "n"))
+  cols <- setdiff(names(r$table), names(r$table)[1])
+  expect_true(all(r$table[r$table[[1]] == "Total", cols] == "100,0 %"))   # cada columna suma 100
+  suma <- colSums(sapply(r$table[1:2, cols], num))
+  expect_true(all(abs(suma - 100) < 0.2))
+  expect_match(r$subtitle, "Usa internet en filas · Nivel educativo en columnas")
+
+  v <- explore_two(d, "educacion", "internet", pct = "col")              # dado la vuelta
+  expect_equal(names(v$table)[1], "Nivel educativo")
+  expect_true(all(c("Sí", "No", "Total") %in% names(v$table)))
+  expect_equal(nrow(v$table), nlevels(d$educacion) + 2)
+
+  h <- explore_two(d, "internet", "educacion", pct = "row")
+  expect_true(all(h$table$Total[1:2] == "100,0 %"))                     # cada fila suma 100
+  t <- explore_two(d, "internet", "educacion", pct = "total")
+  expect_equal(t$table$Total[t$table[[1]] == "Total"], "100,0 %")
+
+  rc <- explore_two(d, "internet", "educacion", pct = "col", counts = TRUE)
+  expect_match(rc$table[1, 2], "^[0-9]+,[0-9] % \\([0-9]+\\)$")
+  expect_false("n" %in% rc$table[[1]])
+})

@@ -11,9 +11,10 @@ mod_explorar_ui <- function(id) {
     div(class = "row g-4",
       div(class = "col-lg-3",
         div(class = "c-card c-card-pad",
-          selectInput(ns("v1"), "Variable principal", choices = NULL),
+          selectInput(ns("v1"), "Variable", choices = NULL),
           conditionalPanel("input.mode == 'two'", ns = ns,
-            selectInput(ns("v2"), "Cruzar con", choices = NULL)),
+            selectInput(ns("v2"), "Variable en columnas", choices = NULL),
+            actionButton(ns("swap"), HTML("&#8646; Intercambiar filas y columnas"), class = "btn-light-c w-100 mb-3")),
           uiOutput(ns("options")),
           selectInput(ns("weight"), "Ponderar por", choices = c("Sin ponderar" = "")))
       ),
@@ -73,15 +74,30 @@ mod_explorar_server <- function(id, ctx) {
       else chart_kind(d, input$v1)
     })
 
+    # Nombres de los selectores: en dos variables, una va en filas y otra en columnas
+    observeEvent(input$mode, {
+      updateSelectInput(session, "v1", label = if (input$mode == "two") "Variable en filas" else "Variable")
+    })
+
+    observeEvent(input$swap, {
+      a <- input$v1; b <- input$v2
+      req(a, b)
+      updateSelectInput(session, "v1", selected = b)
+      updateSelectInput(session, "v2", selected = a)
+    })
+
     output$options <- renderUI({
       k <- kind()
       ch <- chart_choices(k)
       tagList(
         if (length(ch)) selectInput(ns("chart"), "Tipo de gráfico", ch,
                                     selected = if (isTRUE(isolate(input$chart) %in% ch)) isolate(input$chart) else ch[1]),
-        if (k == "catcat") radioButtons(ns("pct"), "Porcentajes",
-            c("Por columna" = "col", "Por fila" = "row", "Sobre el total" = "total"),
-            selected = isolate(input$pct) %||% "col"))
+        if (k == "catcat") tagList(
+          radioButtons(ns("pct"), "Porcentajes",
+            c("Verticales (cada columna suma 100 %)" = "col", "Horizontales (cada fila suma 100 %)" = "row",
+              "Sobre el total" = "total"),
+            selected = isolate(input$pct) %||% "col"),
+          checkboxInput(ns("counts"), "Mostrar también los recuentos (n) en la tabla", value = isTRUE(isolate(input$counts)))))
     })
 
     result <- reactive({
@@ -92,7 +108,8 @@ mod_explorar_server <- function(id, ctx) {
         if (input$mode == "two") {
           req(input$v2 %in% names(d))
           if (input$v1 == input$v2) stop("Elige dos variables distintas.")
-          explore_two(d, input$v1, input$v2, weight = w, pct = input$pct %||% "col", chart = input$chart)
+          explore_two(d, input$v1, input$v2, weight = w, pct = input$pct %||% "col", chart = input$chart,
+                      counts = isTRUE(input$counts))
         } else {
           explore_one(d, input$v1, weight = w, chart = input$chart)
         }
@@ -118,7 +135,15 @@ mod_explorar_server <- function(id, ctx) {
     output$table <- renderUI({
       r <- result()
       req(is.null(r$error))
-      div(style = "overflow-x:auto", html_table(r$table, total_last = identical(r$table[[1]][nrow(r$table)], "Total")))
+      dir_note <- if (input$mode == "two" && identical(kind(), "catcat")) {
+        switch(input$pct %||% "col",
+          col = "↓ Porcentajes verticales: cada columna suma 100 % (fila Total).",
+          row = "→ Porcentajes horizontales: cada fila suma 100 % (columna Total).",
+          "Porcentajes sobre el total: todas las casillas juntas suman 100 %.")
+      }
+      tagList(
+        if (!is.null(dir_note)) div(class = "c-dir-note", dir_note),
+        div(style = "overflow-x:auto", html_table(r$table, total_last = identical(r$table[[1]][nrow(r$table)], "Total"))))
     })
 
     add_result <- function(kind) {

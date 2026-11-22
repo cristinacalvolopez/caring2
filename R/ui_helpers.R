@@ -70,8 +70,9 @@ html_table <- function(df, num_cols = NULL, total_last = FALSE) {
   tags$table(class = "c-table",
     tags$thead(tags$tr(lapply(names(df), function(n) tags$th(class = if (n %in% num_cols) "num", n)))),
     tags$tbody(lapply(seq_len(nrow(df)), function(i) {
-      tags$tr(class = if (total_last && i == nrow(df)) "total",
-              lapply(names(df), function(n) tags$td(class = if (n %in% num_cols) "num", as.character(df[i, n]))))
+      tags$tr(class = if ((total_last && i == nrow(df)) || isTRUE(as.character(df[i, 1]) %in% c("Total", "n"))) "total",
+              lapply(names(df), function(n) tags$td(class = paste(if (n %in% num_cols) "num", if (n == "Total") "tot"),
+                                                    as.character(df[i, n]))))
     }))
   )
 }
