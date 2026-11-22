@@ -63,3 +63,35 @@ test_that("tamaño máximo por archivo ajustable desde administración", {
   expect_true(create_project(con, a, demo_sav(), "demo.sav")$ok)
   expect_equal(get_settings(con)$max_mb, 1000)
 })
+
+test_that("copias HTML en caring/: crea la carpeta, nunca borra ni sobrescribe", {
+  root <- withr::local_tempdir()
+  dir <- file.path(root, "caring")
+  src <- tempfile(fileext = ".html"); writeLines("<html>red 1</html>", src)
+
+  # la carpeta no existe: se crea
+  f1 <- save_html_copy(src, "Coincidencias · 6 variables", dir = dir)
+  expect_true(dir.exists(dir))
+  expect_true(file.exists(f1))
+  expect_match(basename(f1), "^[0-9]{4}-[0-9]{2}-[0-9]{2}_[0-9-]+_Coincidencias_6_variables\\.html$")
+
+  # la carpeta ya existe con archivos ajenos: no se tocan
+  ajeno <- file.path(dir, "no_tocar.txt"); writeLines("importante", ajeno)
+  src2 <- tempfile(fileext = ".html"); writeLines("<html>red 2</html>", src2)
+  f2 <- save_html_copy(src2, "Coincidencias · 6 variables", dir = dir)
+  expect_equal(readLines(ajeno), "importante")
+  expect_equal(readLines(f1), "<html>red 1</html>")         # la primera copia sigue intacta
+  expect_false(identical(f1, f2))
+
+  # mismo nombre en el mismo segundo: se añade _2, _3... sin sobrescribir
+  objetivo <- file.path(dir, paste0(format(Sys.time(), "%Y-%m-%d_%H-%M-%S"), "_Repetido.html"))
+  writeLines("original", objetivo)
+  f3 <- save_html_copy(src2, "Repetido", dir = dir)
+  expect_equal(readLines(objetivo), "original")
+  expect_true(grepl("_Repetido(_[0-9]+)?\\.html$", basename(f3)))
+  expect_false(identical(normalizePath(f3), normalizePath(objetivo)))
+
+  # desactivado con CARING_HTML_DIR vacío
+  expect_null(save_html_copy(src, "x", dir = ""))
+  expect_length(list.files(dir), 5)                         # 3 copias + 2 archivos previos, todos intactos
+})

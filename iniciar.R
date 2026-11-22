@@ -10,15 +10,9 @@
 # Para parar la aplicación: tecla Esc en la consola de R.
 # ------------------------------------------------------------------------------
 
-# 1. Carpeta del proyecto: la de este archivo o, si no se detecta, la carpeta actual.
-carpeta <- NULL
-for (i in rev(seq_len(sys.nframe()))) {
-  f <- tryCatch(sys.frame(i)$ofile, error = function(e) NULL)
-  if (is.character(f) && length(f) == 1) { carpeta <- dirname(normalizePath(f)); break }
-}
-if (is.null(carpeta) || !file.exists(file.path(carpeta, "DESCRIPTION"))) {
-  carpeta <- getwd()
-}
+# 1. Carpeta del programa: la carpeta actual (".").
+#    Antes de ejecutar este script, sitúate en la carpeta de CARING con setwd().
+carpeta <- normalizePath(".")
 if (!file.exists(file.path(carpeta, "DESCRIPTION")) || !file.exists(file.path(carpeta, "app.R"))) {
   stop("No encuentro la carpeta de CARING 2. Sitúate en ella con setwd(\"ruta/donde/esta/caring2\") ",
        "y vuelve a ejecutar source(\"iniciar.R\").")

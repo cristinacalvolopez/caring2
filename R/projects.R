@@ -166,6 +166,28 @@ read_recipe <- function(dir) {
 
 write_recipe <- function(dir, recipe) saveRDS(recipe, file.path(dir, "receta.rds"))
 
+# Copias de los HTML en la carpeta caring/ ------------------------------------------------
+# La carpeta se crea si no existe; nunca se borra ni se vacía. Ningún archivo se
+# sobrescribe: si el nombre ya existe se añade _2, _3...
+
+save_html_copy <- function(src, title, dir = caring_config()$html_dir) {
+  if (is.null(dir) || !nzchar(dir) || !file.exists(src)) return(invisible(NULL))
+  ok <- tryCatch({
+    if (!dir.exists(dir)) dir.create(dir, recursive = TRUE, showWarnings = FALSE)
+    dir.exists(dir)
+  }, error = function(e) FALSE)
+  if (!ok) return(invisible(NULL))
+  base <- paste0(format(Sys.time(), "%Y-%m-%d_%H-%M-%S"), "_", safe_filename(title %||% "caring"))
+  dest <- file.path(dir, paste0(base, ".html"))
+  i <- 1
+  while (file.exists(dest)) {
+    i <- i + 1
+    dest <- file.path(dir, paste0(base, "_", i, ".html"))
+  }
+  if (!isTRUE(file.copy(src, dest, overwrite = FALSE))) return(invisible(NULL))
+  invisible(dest)
+}
+
 # Resultados guardados (para informes) --------------------------------------------------
 
 save_result <- function(dir, kind, title, object, png = NULL, html = NULL, source = "") {

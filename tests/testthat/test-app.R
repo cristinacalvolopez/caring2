@@ -13,7 +13,8 @@ test_that("recorrido completo en el navegador", {
   srv <- processx::process$new(
     file.path(R.home("bin"), "Rscript"),
     c("-e", sprintf("shiny::runApp('%s', port = %d, launch.browser = FALSE)", root, port)),
-    env = c("current", CARING_STORAGE = storage, CARING_DB = file.path(storage, "e2e.sqlite")),
+    env = c("current", CARING_STORAGE = storage, CARING_DB = file.path(storage, "e2e.sqlite"),
+            CARING_HTML_DIR = file.path(storage, "caring")),
     stdout = "|", stderr = "2>&1")
   withr::defer(srv$kill())
   url <- sprintf("http://127.0.0.1:%d", port)

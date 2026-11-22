@@ -236,14 +236,20 @@ mod_informes_server <- function(id, ctx) {
     output$dl_pdf <- downloadHandler(fname("pdf"), function(file) {
       withProgress(message = "Generando PDF…", export_pdf(proj$dir, latest(), file))
     })
-    output$dl_html <- downloadHandler(fname("html"), function(file) export_html(proj$dir, latest(), file))
+    output$dl_html <- downloadHandler(fname("html"), function(file) {
+      doc <- latest()
+      export_html(proj$dir, doc, file)
+      save_html_copy(file, doc$title)
+    })
     for (o in c("dl_pptx", "dl_docx", "dl_pdf", "dl_html")) outputOptions(output, o, suspendWhenHidden = FALSE)
 
     observeEvent(input$present, {
       req(current())
       f <- tempfile(fileext = ".html")
       on.exit(unlink(f))
-      export_html(proj$dir, latest(), f, present = TRUE)
+      doc <- latest()
+      export_html(proj$dir, doc, f, present = TRUE)
+      save_html_copy(f, paste(doc$title, "(presentación)"))
       session$sendCustomMessage("caring-open-html", list(html = paste(readLines(f, warn = FALSE, encoding = "UTF-8"), collapse = "\n")))
     })
   })

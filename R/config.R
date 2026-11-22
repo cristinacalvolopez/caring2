@@ -9,6 +9,8 @@
 #   CARING_MAX_MB    tamaño máximo de subida en MB mientras no se cambie desde
 #                    Administración (por defecto 200)
 #   CARING_SECURE    "true" si la app se sirve por https (cookies Secure)
+#   CARING_HTML_DIR  carpeta donde se guarda una copia de cada red y de cada informe
+#                    en HTML (por defecto ./caring). Vacía = no guardar copias.
 
 caring_config <- function() {
   storage <- Sys.getenv("CARING_STORAGE", file.path(getwd(), "storage"))
@@ -17,7 +19,8 @@ caring_config <- function() {
     db = Sys.getenv("CARING_DB", file.path(storage, "caring.sqlite")),
     mail = Sys.getenv("CARING_MAIL", "console"),
     max_mb = as.numeric(Sys.getenv("CARING_MAX_MB", "200")),
-    secure_cookies = identical(tolower(Sys.getenv("CARING_SECURE", "false")), "true")
+    secure_cookies = identical(tolower(Sys.getenv("CARING_SECURE", "false")), "true"),
+    html_dir = Sys.getenv("CARING_HTML_DIR", file.path(getwd(), "caring"))
   )
 }
 

@@ -23,3 +23,6 @@ old/
 
 # Scripts internos que generan los datos de demostración y la plantilla (solo en local)
 data-raw/
+
+# Copias de redes e informes en HTML que guarda la app (contienen datos): solo en local
+/caring/

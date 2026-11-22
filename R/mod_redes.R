@@ -162,6 +162,9 @@ mod_redes_server <- function(id, ctx) {
       }
       if (!is.null(current$html)) unlink(current$html)
       current$net <- res$net; current$html <- res$html; current$spec <- s; current$title <- s$title
+      copia <- save_html_copy(res$html, s$title)
+      if (!is.null(copia)) showNotification(paste("Red guardada también en", file.path(basename(dirname(copia)), basename(copia))),
+                                            type = "message", duration = 4)
     })
 
     output$net_title <- renderText(current$title %||% "Red")

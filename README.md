@@ -59,6 +59,11 @@ Todo se guarda en la carpeta `storage/`, que no se sube a GitHub:
 | Archivos de cada proyecto | `storage/users/<usuario>/projects/<proyecto>/` |
 | Correos (en local no se envían) | `storage/correo/` |
 
+Además, cada red que se crea y cada informe que se exporta en HTML se guardan
+como copia en la carpeta **`caring/`** (en la raíz del programa), con la fecha y
+el título en el nombre. La carpeta se crea si no existe; nunca se borra ni se
+sobrescribe ningún archivo. Tampoco se sube a GitHub.
+
 Las contraseñas se guardan cifradas con Argon2 (nunca en claro). Los proyectos de
 invitado se borran solos a las 24 horas.
 
@@ -70,6 +75,7 @@ invitado se borran solos a las 24 horas.
 | `CARING_DB` | archivo de la base de datos | `<storage>/caring.sqlite` |
 | `CARING_MAX_MB` | tamaño máximo por archivo (MB) hasta que se cambie en Administración | `200` |
 | `CARING_SECURE` | `true` si se sirve por https | `false` |
+| `CARING_HTML_DIR` | carpeta donde se guarda una copia de cada red y de cada informe HTML (nunca se borra ni se sobrescribe nada); vacía = no guardar | `./caring` |
 | `CARING_MAIL` | `console` guarda los correos en archivos; `smtp` los envía | `console` |
 | `CARING_SMTP_SERVER` | servidor SMTP, p. ej. `smtps://smtp.usal.es:465` | — |
 | `CARING_SMTP_USER` / `CARING_SMTP_PASSWORD` | credenciales SMTP (si hacen falta) | — |
