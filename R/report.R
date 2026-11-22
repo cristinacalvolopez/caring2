@@ -1,7 +1,8 @@
 # Informes y diapositivas -------------------------------------------------------------------
 # Un documento es una lista (se guarda como JSON):
 #   list(id, title, type = "slides" | "report", mode = "free" | "blocks",
-#        pages = list(list(id, bg, elements = list(...))))
+#        theme = "clasico" | "claro" | "profesional" | "divertido" | "academico" (ver themes.R),
+#        pages = list(list(id, kind, bg, elements = list(...))))
 # Cada elemento: list(id, kind = "text" | "shape" | "image" | "result",
 #   x, y, w, h (en puntos: la diapositiva mide 960 × 540 y la página A4 595 × 842),
 #   text, style = list(size, bold, italic, color, align, bg), ref (id del resultado),
@@ -17,47 +18,10 @@ txt_style <- function(size = 18, bold = FALSE, color = "#000000", align = "left"
   compact(list(size = size, bold = bold, italic = italic, color = color, align = align, bg = bg))
 }
 
-# Plantillas de página.
-page_template <- function(template, type = "slides", title = "Título") {
-  if (type == "report") {
-    els <- switch(template,
-      portada = list(
-        el("shape", 0, 0, 595, 260, style = list(bg = "#2F7BEE")),
-        el("text", 50, 110, 495, 70, text = title, style = txt_style(30, TRUE, "#FFFFFF")),
-        el("text", 50, 190, 495, 40, text = "Subtítulo o autoría", style = txt_style(15, FALSE, "#FFFFFF")),
-        el("text", 50, 290, 495, 60, text = "Escribe aquí la introducción del informe.", style = txt_style(12))),
-      blanca = list(),
-      list(el("text", 50, 50, 495, 40, text = "Apartado", style = txt_style(20, TRUE, "#135DCD")),
-           el("text", 50, 100, 495, 60, text = "Escribe aquí el texto del apartado.", style = txt_style(12))))
-    return(list(id = substr(gsub("-", "", new_id()), 1, 10), bg = "#FFFFFF", elements = els))
-  }
-  els <- switch(template,
-    portada = list(
-      el("shape", 0, 0, 960, 540, style = list(bg = "#2F7BEE")),
-      el("text", 70, 170, 820, 110, text = title, style = txt_style(48, TRUE, "#FFFFFF")),
-      el("text", 70, 300, 820, 50, text = "Subtítulo · autoría · fecha", style = txt_style(22, FALSE, "#FFFFFF")),
-      el("text", 70, 470, 820, 30, text = "Elaborado con CARING · Universidad de Salamanca", style = txt_style(14, FALSE, "#FFFFFF"))),
-    dos_columnas = list(
-      el("shape", 0, 0, 960, 90, style = list(bg = "#2F7BEE")),
-      el("text", 48, 18, 864, 56, text = "Título de la diapositiva", style = txt_style(30, TRUE, "#FFFFFF")),
-      el("text", 48, 120, 420, 370, text = "Texto de la columna izquierda.", style = txt_style(18)),
-      el("text", 492, 120, 420, 370, text = "Texto de la columna derecha.", style = txt_style(18))),
-    blanca = list(),
-    seccion = list(
-      el("shape", 0, 0, 960, 540, style = list(bg = "#135DCD")),
-      el("text", 70, 220, 820, 90, text = "Sección", style = txt_style(44, TRUE, "#FFFFFF"))),
-    # título y contenido
-    list(
-      el("shape", 0, 0, 960, 90, style = list(bg = "#2F7BEE")),
-      el("text", 48, 18, 864, 56, text = "Título de la diapositiva", style = txt_style(30, TRUE, "#FFFFFF")),
-      el("text", 48, 110, 864, 50, text = "Escribe aquí el contenido.", style = txt_style(20))))
-  list(id = substr(gsub("-", "", new_id()), 1, 10), bg = "#FFFFFF", elements = els)
-}
-
-new_document <- function(title, type = "slides") {
-  pages <- if (type == "report") list(page_template("portada", "report", title))
-           else list(page_template("portada", "slides", title), page_template("contenido", "slides"))
-  list(id = substr(gsub("-", "", new_id()), 1, 12), title = title, type = type, mode = "free",
+new_document <- function(title, type = "slides", theme = "clasico") {
+  pages <- if (type == "report") list(page_template("portada", "report", title, theme))
+           else list(page_template("portada", "slides", title, theme), page_template("contenido", "slides", theme = theme))
+  list(id = substr(gsub("-", "", new_id()), 1, 12), title = title, type = type, mode = "free", theme = theme,
        created = now_utc(), modified = now_utc(), pages = pages)
 }
 
@@ -175,6 +139,10 @@ export_html <- function(dir, doc, file, present = FALSE, static = FALSE) {
             if (file.exists(png)) sprintf('<img src="%s" style="width:100%%;height:100%%;object-fit:contain">', data_uri(png, "image/png")) else ""
           }
         }, "")
+      if (identical(e$kind, "result") && !is.null(e$style$bg)) {
+        st <- paste0(st, sprintf("background:%s;border-radius:%spx;padding:8px;box-sizing:border-box;",
+                                 e$style$bg, e$style$radius %||% 0))
+      }
       sprintf('<div class="el" style="%s">%s</div>', st, inner)
     })
     sprintf('<section class="page" id="p%d" style="background:%s">%s</section>', i, css_color(p$bg, "#FFFFFF"),
@@ -263,8 +231,15 @@ export_pptx <- function(dir, doc, file) {
     for (e in p$elements) {
       loc_args <- list(left = inch(e$x), top = inch(e$y), width = inch(e$w), height = inch(e$h))
       if (e$kind == "shape") {
-        loc <- do.call(officer::ph_location, c(loc_args, list(bg = css_color(e$style$bg, "#2F7BEE"))))
-        pp <- officer::ph_with(pp, officer::block_list(officer::fpar("")), location = loc)
+        if (isTRUE(as.numeric(e$style$radius %||% 0) > 0)) {
+          # PowerPoint (vía officer) no tiene formas redondeadas: se dibujan como imagen.
+          img <- rounded_png(e$w, e$h, as.numeric(e$style$radius), css_color(e$style$bg, "#2F7BEE"))
+          pp <- officer::ph_with(pp, officer::external_img(img, width = inch(e$w), height = inch(e$h)),
+                                 location = do.call(officer::ph_location, loc_args), use_loc_size = TRUE)
+        } else {
+          loc <- do.call(officer::ph_location, c(loc_args, list(bg = css_color(e$style$bg, "#2F7BEE"))))
+          pp <- officer::ph_with(pp, officer::block_list(officer::fpar("")), location = loc)
+        }
       } else if (e$kind == "text") {
         loc <- do.call(officer::ph_location, c(loc_args, if (!is.null(e$style$bg)) list(bg = e$style$bg)))
         pp <- officer::ph_with(pp, office_text(e), location = loc)
@@ -277,6 +252,13 @@ export_pptx <- function(dir, doc, file) {
       } else if (e$kind == "result") {
         r <- load_result(dir, e$ref %||% "")
         if (is.null(r)) next
+        if (!is.null(e$style$bg)) {
+          card <- rounded_png(e$w, e$h, as.numeric(e$style$radius %||% 0), e$style$bg)
+          pp <- officer::ph_with(pp, officer::external_img(card, width = inch(e$w), height = inch(e$h)),
+                                 location = do.call(officer::ph_location, loc_args), use_loc_size = TRUE)
+          e$x <- e$x + 8; e$y <- e$y + 8; e$w <- e$w - 16; e$h <- e$h - 16
+          loc_args <- list(left = inch(e$x), top = inch(e$y), width = inch(e$w), height = inch(e$h))
+        }
         if (identical(r$kind, "tabla") && !is.null(r$object$table)) {
           ft <- flextable::fit_to_width(flextable_caring(r$object$table), max_width = inch(e$w))
           pp <- officer::ph_with(pp, ft, location = do.call(officer::ph_location, loc_args))
@@ -295,6 +277,25 @@ export_pptx <- function(dir, doc, file) {
   }
   print(pp, target = file)
   invisible(file)
+}
+
+# Forma (rectángulo redondeado o círculo) como imagen PNG transparente.
+rounded_png <- function(w, h, radius, color) {
+  f <- tempfile(fileext = ".png")
+  grDevices::png(f, width = max(2, round(w * 2)), height = max(2, round(h * 2)), bg = "transparent")
+  grid::grid.newpage()
+  r <- min(radius, w / 2, h / 2) / min(w, h)
+  grid::grid.roundrect(width = grid::unit(1, "npc"), height = grid::unit(1, "npc"),
+                       r = grid::unit(r, "snpc"), gp = grid::gpar(fill = color, col = NA))
+  grDevices::dev.off()
+  f
+}
+
+# ¿Color claro? (para pasar a negro los textos claros al exportar a Word, que siempre es blanco)
+is_light <- function(col) {
+  if (is.null(col) || !nzchar(col)) return(FALSE)
+  rgb <- tryCatch(grDevices::col2rgb(col)[, 1] / 255, error = function(e) c(0, 0, 0))
+  sum(c(0.299, 0.587, 0.114) * rgb) > 0.6
 }
 
 office_text <- function(e) {
@@ -337,7 +338,7 @@ export_docx <- function(dir, doc, file) {
         } else if (size >= 18 && isTRUE(e$style$bold)) {
           dx <- officer::body_add_par(dx, e$text, style = "heading 2")
         } else {
-          e2 <- e; e2$style$color <- if (identical(toupper(e$style$color %||% ""), "#FFFFFF")) "#000000" else e$style$color
+          e2 <- e; e2$style$color <- if (is_light(e$style$color)) "#000000" else e$style$color
           e2$style$size <- min(size, 12)
           for (fp in office_text(e2)) dx <- officer::body_add_fpar(dx, fp)
         }

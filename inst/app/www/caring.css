@@ -280,3 +280,12 @@ pre.c-code { background: #F5F5F5; border: 1px solid var(--c-border-2); border-ra
 .dropdown-menu .dropdown-item:hover, .dropdown-menu .dropdown-item:focus { background: var(--c-blue-soft) !important; color: var(--c-blue-dark) !important; }
 .dropdown-menu .dropdown-item.text-danger, .c-topbar .c-nav .dropdown-menu #nav_logout { color: var(--c-error) !important; }
 .dropdown-menu .dropdown-item-text.small-2 { color: var(--c-text-2) !important; }
+
+/* Galería de estilos de informes */
+.c-theme-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 16px; }
+.c-theme-card { text-align: left; background: #fff; border: 2px solid var(--c-border-2); border-radius: 8px; padding: 12px; cursor: pointer; display: flex; flex-direction: column; gap: 8px; }
+.c-theme-card:hover { border-color: var(--c-blue); background: var(--c-blue-soft); }
+.c-theme-card.on { border-color: var(--c-blue); }
+.c-theme-prev { background: var(--c-bg); border-radius: 5px; padding: 10px 6px; }
+.c-theme-name { font-weight: 700; font-size: 16px; display: flex; gap: 8px; align-items: center; color: var(--c-text); }
+.c-theme-desc { font-size: 13px; color: var(--c-text-2); }

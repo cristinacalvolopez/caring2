@@ -73,9 +73,12 @@
     return { margin: margin, gutter: gutter, col: col, row: 10 };
   }
   function contentTop(p) {
-    var top = grid().margin;
+    var top = grid().margin, s = size();
     p.elements.forEach(function (e) {
-      if (e.kind === "shape" && e.y <= 0 && e.w >= size().w - 1 && e.h < size().h * 0.5) top = Math.max(top, e.y + e.h + 20);
+      if (e.kind !== "shape") return;
+      var decor = (e.role === "band" || e.role === "rule") && e.y < s.h * 0.3;
+      var legacy = e.y <= 0 && e.w >= s.w - 1 && e.h < s.h * 0.5;
+      if (decor || legacy) top = Math.max(top, e.y + e.h + 20);
     });
     return top;
   }
@@ -162,22 +165,25 @@
     commit(); render();
   }
   function addText(kind) {
-    var title = kind === "title";
+    var title = kind === "title", t = E.theme;
     var slot = freeSlot(title ? 700 : 420, title ? 60 : 120);
-    addElement({ id: uid(), kind: "text", x: slot.x, y: slot.y, w: slot.w, h: slot.h,
+    addElement({ id: uid(), kind: "text", role: title ? "heading" : "body", x: slot.x, y: slot.y, w: slot.w, h: slot.h,
       text: title ? "Título" : "Escribe aquí tu texto",
-      style: { size: title ? 32 : (E.doc.type === "report" ? 12 : 18), bold: title, color: "#000000", align: "left" } });
+      style: { size: title ? (E.doc.type === "report" ? 20 : 32) : (E.doc.type === "report" ? 12 : 18), bold: title,
+               color: title ? t.heading : t.text, align: "left" } });
   }
   function addShape() {
     var slot = freeSlot(240, 140);
-    addElement({ id: uid(), kind: "shape", x: slot.x, y: slot.y, w: slot.w, h: slot.h, style: { bg: "#2F7BEE", radius: 0 } });
+    addElement({ id: uid(), kind: "shape", x: slot.x, y: slot.y, w: slot.w, h: slot.h,
+                 style: { bg: E.theme.accent || "#2F7BEE", radius: Math.min(E.theme.radius || 0, 20) } });
   }
   function addResult(id) {
     var r = E.assets.results[id];
     if (!r) return;
     var s = size(), w = r.kind === "tabla" ? s.w * 0.55 : s.w * 0.62, h = r.kind === "tabla" ? s.h * 0.4 : s.h * 0.58;
     var slot = freeSlot(Math.round(w), Math.round(h));
-    addElement({ id: uid(), kind: "result", ref: id, x: slot.x, y: slot.y, w: slot.w, h: slot.h });
+    var st = E.theme.resultBg ? { bg: E.theme.resultBg, radius: E.theme.radius || 0 } : undefined;
+    addElement({ id: uid(), kind: "result", role: "result", ref: id, x: slot.x, y: slot.y, w: slot.w, h: slot.h, style: st });
   }
   function addImage(src) {
     var slot = freeSlot(320, 220);
@@ -233,6 +239,9 @@
       var src = E.assets.images[e.src];
       n.appendChild(src ? h("img", { src: src, alt: "", draggable: "false" }) : h("div", { "class": "ed-missing", text: "Imagen no disponible" }));
     } else if (e.kind === "result") {
+      if (e.style && e.style.bg) {
+        n.style.background = e.style.bg; n.style.borderRadius = (e.style.radius || 0) + "px"; n.style.padding = "8px";
+      }
       var r = E.assets.results[e.ref];
       if (!r) n.appendChild(h("div", { "class": "ed-missing", text: "Resultado borrado" }));
       else if (r.kind === "tabla" && r.html) n.appendChild(h("div", { "class": "ed-table", html: r.html }));
@@ -336,6 +345,9 @@
       rad.addEventListener("change", function () { e.style.radius = +rad.value; commit(); render(); });
       side.appendChild(h("div", { "class": "ed-row" }, [h("span", { text: "Redondeo" }), rad]));
     } else if (e.kind === "result") {
+      if (e.style && e.style.bg) {
+        n.style.background = e.style.bg; n.style.borderRadius = (e.style.radius || 0) + "px"; n.style.padding = "8px";
+      }
       var r = E.assets.results[e.ref];
       side.appendChild(h("div", { "class": "ed-label", text: r ? r.title : "Resultado" }));
       if (r && r.interactive) side.appendChild(h("p", { "class": "ed-hint", text: "En HTML la red se exporta interactiva; en PowerPoint, Word y PDF, como imagen." }));
@@ -497,6 +509,7 @@
     var root = document.getElementById(m.el);
     if (!root) { if (E && E.root) E.root.innerHTML = ""; E = null; return; }
     E = { root: root, doc: m.doc, assets: m.assets || { results: {}, images: {} }, templates: m.templates || {},
+          theme: m.theme || { text: "#000000", heading: "#135DCD", accent: "#2F7BEE", resultBg: null, radius: 0 },
           inputId: m.inputId, deleteResultId: m.deleteResultId, imageInput: m.imageInput,
           page: 0, sel: null, undo: [], redo: [], last: JSON.stringify(m.doc), scale: 1 };
     var tpls = E.doc.type === "report" ? TEMPLATES_REPORT : TEMPLATES_SLIDES;

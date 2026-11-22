@@ -17,6 +17,7 @@ mod_informes_ui <- function(id) {
           tags$ul(class = "dropdown-menu",
             tags$li(actionLink(ns("rename_doc"), "Renombrar", class = "dropdown-item")),
             tags$li(actionLink(ns("delete_doc"), "Borrar", class = "dropdown-item text-danger")))),
+        actionButton(ns("style"), "Estilo", class = "btn-light-c mb-3"),
         actionButton(ns("present"), "Presentar", class = "btn-light-c mb-3"),
         div(class = "dropdown mb-3",
           tags$button(class = "btn btn-primary dropdown-toggle", type = "button", `data-bs-toggle` = "dropdown", "Exportar"),
@@ -41,6 +42,8 @@ mod_informes_server <- function(id, ctx) {
     docs_version <- reactiveVal(0)
     current <- reactiveVal(NULL)
     want_doc <- reactiveVal(NULL)
+    last_theme <- reactiveVal("clasico")     # estilo para los documentos nuevos
+    pending_theme <- reactiveVal(NULL)       # estilo a aplicar en cuanto llegue el documento del editor
 
     docs <- reactive({
       docs_version(); proj$version
@@ -67,9 +70,9 @@ mod_informes_server <- function(id, ctx) {
           actionButton(ns("new_report2"), "Nuevo informe", class = "btn-light-c")))
     })
 
-    templates_for <- function(type) {
+    templates_for <- function(type, theme) {
       keys <- if (type == "report") c("portada", "apartado", "blanca") else c("portada", "contenido", "dos_columnas", "seccion", "blanca")
-      stats::setNames(lapply(keys, function(k) page_template(k, type)), keys)
+      stats::setNames(lapply(keys, function(k) page_template(k, type, theme = theme)), keys)
     }
 
     assets <- reactive({
@@ -84,9 +87,11 @@ mod_informes_server <- function(id, ctx) {
       doc <- tryCatch(load_document(proj$dir, id), error = function(e) NULL)
       req(doc)
       current(doc)
+      th <- doc$theme %||% "clasico"
       session$sendCustomMessage("caring-editor-load", list(
         el = ns("editor"), inputId = ns("doc_json"), deleteResultId = ns("del_result"),
-        imageInput = ns("img_upload"), doc = doc, assets = assets(), templates = templates_for(doc$type)))
+        imageInput = ns("img_upload"), doc = doc, assets = assets(),
+        templates = templates_for(doc$type, th), theme = theme_for_editor(th, doc$type)))
     }
 
     # Se monta el editor al entrar en el paso Informes o al cambiar de documento.
@@ -102,10 +107,52 @@ mod_informes_server <- function(id, ctx) {
       if (!ctx$can_edit()) return()
       doc <- tryCatch(jsonlite::fromJSON(input$doc_json, simplifyVector = FALSE), error = function(e) NULL)
       if (is.null(doc) || is.null(doc$id) || !grepl("^[a-f0-9]+$", doc$id) || !is.list(doc$pages)) return()
-      save_document(proj$dir, doc)
-      current(doc)
+      th <- pending_theme()
+      if (!is.null(th)) {
+        pending_theme(NULL)
+        doc <- apply_theme(doc, th)
+        save_document(proj$dir, doc)
+        current(doc)
+        mount()
+        showNotification(paste0("Estilo «", caring_themes[[th]]$nombre, "» aplicado. Puedes deshacerlo eligiendo otro estilo."),
+                         type = "message")
+      } else {
+        save_document(proj$dir, doc)
+        current(doc)
+      }
       touch_project(ctx$con, proj$id)
       proj$saved <- Sys.time()
+    })
+
+    # Galería de estilos
+    observeEvent(input$style, {
+      doc <- current()
+      type <- doc$type %||% "slides"
+      actual <- doc$theme %||% last_theme()
+      cards <- lapply(names(caring_themes), function(k) {
+        th <- caring_themes[[k]]
+        tags$button(type = "button", class = paste("c-theme-card", if (k == actual) "on"),
+          onclick = sprintf("caringAction('%s', '%s', 'theme', event)", ns("pick_theme"), k),
+          div(class = "c-theme-prev", HTML(theme_preview_html(k, type))),
+          div(class = "c-theme-name", th$nombre, if (k == actual) span(class = "c-tag", "actual")),
+          div(class = "c-theme-desc", th$desc))
+      })
+      showModal(modalDialog(title = "Elige un estilo", size = "xl", easyClose = TRUE,
+        p(class = "c-hint", if (is.null(doc)) "Se usará en los documentos que crees a partir de ahora."
+          else "Se aplica a todo el documento abierto: cambian colores y adornos, el contenido se mantiene. También se usará en los documentos nuevos."),
+        div(class = "c-theme-grid", cards),
+        footer = modalButton("Cerrar")))
+    })
+
+    observeEvent(input$pick_theme, {
+      th <- input$pick_theme$id
+      req(th %in% names(caring_themes))
+      last_theme(th)
+      removeModal()
+      if (is.null(current())) return(showNotification(paste0("Los documentos nuevos usarán el estilo «", caring_themes[[th]]$nombre, "»."), type = "message"))
+      if (!ctx$can_edit()) return(showNotification("Proyecto de solo lectura.", type = "error"))
+      pending_theme(th)
+      session$sendCustomMessage("caring-editor-flush", list())
     })
 
     create_doc <- function(type) {
@@ -113,7 +160,7 @@ mod_informes_server <- function(id, ctx) {
       n <- nrow(docs()) + 1
       title <- if (type == "report") paste("Informe", n) else paste("Presentación", n)
       if (n == 1) title <- proj$info$nombre
-      doc <- new_document(title, type)
+      doc <- new_document(title, type, theme = last_theme())
       save_document(proj$dir, doc)
       want_doc(doc$id)
       docs_version(docs_version() + 1)
