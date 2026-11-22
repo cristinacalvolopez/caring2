@@ -66,7 +66,11 @@ invitado se borran solos a las 24 horas.
 | `CARING_DB` | archivo de la base de datos | `<storage>/caring.sqlite` |
 | `CARING_MAX_MB` | tamaño máximo por archivo (MB) hasta que se cambie en Administración | `200` |
 | `CARING_SECURE` | `true` si se sirve por https | `false` |
-| `CARING_MAIL` | `console` guarda los correos en archivos | `console` |
+| `CARING_MAIL` | `console` guarda los correos en archivos; `smtp` los envía | `console` |
+| `CARING_SMTP_SERVER` | servidor SMTP, p. ej. `smtps://smtp.usal.es:465` | — |
+| `CARING_SMTP_USER` / `CARING_SMTP_PASSWORD` | credenciales SMTP (si hacen falta) | — |
+| `CARING_MAIL_FROM` | remitente de los correos | — |
+| `CARING_SMTP_SSL` | `force`, `try` o `no` | `force` |
 
 ## Pruebas automáticas
 

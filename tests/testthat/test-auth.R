@@ -86,3 +86,22 @@ test_that("listado de usuarios para administración", {
   expect_equal(nrow(u), 1)
   expect_true(all(c("proyectos", "bytes") %in% names(u)))
 })
+
+test_that("correo: mensaje MIME en UTF-8 y modo consola", {
+  m <- build_mail("caring@usal.es", "begoña@ejemplo.com", "CARING: recuperar contraseña", "Hola Begoña,\nEnlace: https://x/?a=1")
+  expect_match(m, "Subject: =?UTF-8?B?", fixed = TRUE)
+  expect_match(m, "charset=UTF-8", fixed = TRUE)
+  cuerpo <- sub(".*\r\n\r\n", "", m)
+  expect_equal(rawToChar(base64enc::base64decode(gsub("\r\n", "", cuerpo))), "Hola Begoña,\nEnlace: https://x/?a=1")
+  asunto <- sub(".*Subject: =\\?UTF-8\\?B\\?([^?]+)\\?=.*", "\\1", m)
+  expect_equal(rawToChar(base64enc::base64decode(asunto)), "CARING: recuperar contraseña")
+
+  dir <- withr::local_tempdir()
+  withr::local_envvar(CARING_STORAGE = dir, CARING_MAIL = "console")
+  expect_message(send_mail("a@ejemplo.com", "Prueba", "Texto"), "correo")
+  expect_length(list.files(file.path(dir, "correo")), 1)
+
+  withr::local_envvar(CARING_MAIL = "smtp", CARING_SMTP_SERVER = "smtp://127.0.0.1:1", CARING_MAIL_FROM = "caring@usal.es")
+  expect_message(ok <- send_mail("a@ejemplo.com", "Prueba", "Texto"), "Error al enviar")
+  expect_false(ok)
+})

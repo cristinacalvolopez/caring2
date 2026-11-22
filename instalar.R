@@ -4,7 +4,7 @@
 paquetes <- c(
   "shiny", "bslib", "DBI", "RSQLite", "sodium", "jsonlite", "uuid", "digest",
   "haven", "readxl", "data.table", "netCoin", "ggplot2", "sortable", "reactable",
-  "officer", "flextable", "base64enc", "webshot2", "chromote", "htmltools", "pkgload",
+  "officer", "flextable", "base64enc", "webshot2", "chromote", "htmltools", "pkgload", "curl",
   # solo para las pruebas automáticas
   "testthat", "withr", "shinytest2", "writexl", "tibble"
 )

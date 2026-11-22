@@ -186,20 +186,55 @@ verify_email <- function(con, token) {
 }
 
 # Correo --------------------------------------------------------------------------
-# En local los correos se guardan como archivos de texto en <storage>/correo y se
-# muestran en la consola. En el servidor se cambiará por SMTP (CARING_MAIL=smtp).
+# CARING_MAIL=console (por defecto): los correos se guardan como archivos de texto
+#   en <storage>/correo y se muestran en la consola. Útil en local.
+# CARING_MAIL=smtp: se envían por SMTP con estas variables de entorno:
+#   CARING_SMTP_SERVER    p. ej. smtps://smtp.usal.es:465 o smtp://smtp.usal.es:587
+#   CARING_SMTP_USER      usuario SMTP (si el servidor lo pide)
+#   CARING_SMTP_PASSWORD  contraseña SMTP
+#   CARING_MAIL_FROM      remitente, p. ej. caring@usal.es
+#   CARING_SMTP_SSL       force (por defecto: cifrado obligatorio), try o no
+
+mime_header <- function(x) {
+  if (!grepl("[^ -~]", x)) return(x)
+  paste0("=?UTF-8?B?", base64enc::base64encode(charToRaw(enc2utf8(x))), "?=")
+}
+
+build_mail <- function(from, to, subject, body) {
+  b64 <- base64enc::base64encode(charToRaw(enc2utf8(body)), linewidth = 76, newline = "\r\n")
+  paste0(
+    "From: CARING <", from, ">\r\n",
+    "To: <", to, ">\r\n",
+    "Subject: ", mime_header(subject), "\r\n",
+    "Date: ", format(Sys.time(), "%a, %d %b %Y %H:%M:%S %z", tz = "UTC"), "\r\n",
+    "MIME-Version: 1.0\r\n",
+    "Content-Type: text/plain; charset=UTF-8\r\n",
+    "Content-Transfer-Encoding: base64\r\n\r\n",
+    b64, "\r\n")
+}
 
 send_mail <- function(to, subject, body) {
   cfg <- caring_config()
-  if (cfg$mail == "console") {
-    dir <- file.path(cfg$storage, "correo")
-    dir.create(dir, recursive = TRUE, showWarnings = FALSE)
-    f <- file.path(dir, paste0(format(Sys.time(), "%Y%m%d-%H%M%OS3"), ".txt"))
-    writeLines(c(paste("Para:", to), paste("Asunto:", subject), "", body), f, useBytes = TRUE)
-    message("[correo] ", subject, " -> ", to, " (", f, ")")
-  } else {
-    stop("Envío por SMTP aún no configurado (CARING_MAIL=", cfg$mail, ")")
+  if (cfg$mail == "smtp") {
+    server <- Sys.getenv("CARING_SMTP_SERVER")
+    from <- Sys.getenv("CARING_MAIL_FROM")
+    if (!nzchar(server) || !nzchar(from)) stop("Faltan CARING_SMTP_SERVER o CARING_MAIL_FROM.")
+    user <- Sys.getenv("CARING_SMTP_USER")
+    ok <- tryCatch({
+      args <- list(mail_from = from, mail_rcpt = to, message = build_mail(from, to, subject, body),
+                   smtp_server = server, verbose = FALSE,
+                   use_ssl = match.arg(Sys.getenv("CARING_SMTP_SSL", "force"), c("force", "try", "no")))
+      if (nzchar(user)) args <- c(args, list(username = user, password = Sys.getenv("CARING_SMTP_PASSWORD")))
+      do.call(curl::send_mail, args)
+      TRUE
+    }, error = function(e) { message("[correo] Error al enviar a ", to, ": ", conditionMessage(e)); FALSE })
+    return(invisible(ok))
   }
+  dir <- file.path(cfg$storage, "correo")
+  dir.create(dir, recursive = TRUE, showWarnings = FALSE)
+  f <- file.path(dir, paste0(format(Sys.time(), "%Y%m%d-%H%M%OS3"), ".txt"))
+  writeLines(c(paste("Para:", to), paste("Asunto:", subject), "", body), f, useBytes = TRUE)
+  message("[correo] ", subject, " -> ", to, " (", f, ")")
   invisible(TRUE)
 }
 

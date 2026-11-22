@@ -5,7 +5,7 @@
 #   CARING_STORAGE   carpeta de datos (por defecto ./storage)
 #   CARING_DB        ruta del archivo SQLite (por defecto <storage>/caring.sqlite)
 #   CARING_MAIL      "console" (por defecto: los correos se escriben en
-#                    <storage>/correo/) o "smtp" (pendiente de configurar)
+#                    <storage>/correo/) o "smtp" (ver send_mail() en auth.R)
 #   CARING_MAX_MB    tamaño máximo de subida en MB mientras no se cambie desde
 #                    Administración (por defecto 200)
 #   CARING_SECURE    "true" si la app se sirve por https (cookies Secure)
