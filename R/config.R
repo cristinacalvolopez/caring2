@@ -6,7 +6,8 @@
 #   CARING_DB        ruta del archivo SQLite (por defecto <storage>/caring.sqlite)
 #   CARING_MAIL      "console" (por defecto: los correos se escriben en
 #                    <storage>/correo/) o "smtp" (pendiente de configurar)
-#   CARING_MAX_MB    tamaño máximo de subida en MB (por defecto 200)
+#   CARING_MAX_MB    tamaño máximo de subida en MB mientras no se cambie desde
+#                    Administración (por defecto 200)
 #   CARING_SECURE    "true" si la app se sirve por https (cookies Secure)
 
 caring_config <- function() {
@@ -26,7 +27,8 @@ default_settings <- list(
   verificar_correo = FALSE,   # en local no hay servidor de correo
   cuota_mb = 2048,
   invitados_horas = 24,
-  inactivas_anios = 2
+  inactivas_anios = 2,
+  max_mb = NULL               # tamaño máximo por archivo; si no se ha fijado, CARING_MAX_MB
 )
 
 app_file <- function(...) {

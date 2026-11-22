@@ -64,10 +64,12 @@ mod_projects_server <- function(id, con, state, on_open) {
     new_modal <- function() {
       showModal(modalDialog(
         title = "Nuevo proyecto", easyClose = TRUE, size = "m",
-        fileInput(ns("file"), "Archivo de datos",
-                  accept = paste0(".", names(formatos_admitidos)),
-                  buttonLabel = "Elegir…", placeholder = "Ningún archivo"),
-        p(class = "c-hint", "SPSS (.sav, .por), Stata (.dta), R (.rds, .RData), CSV, TSV, Excel (.xlsx, .xls) y SAS (.sas7bdat). ",
+        div(`data-max-mb` = as.numeric(get_setting(con, "max_mb")),
+          fileInput(ns("file"), "Archivo de datos",
+                    accept = paste0(".", names(formatos_admitidos)),
+                    buttonLabel = "Elegir…", placeholder = "Ningún archivo")),
+        p(class = "c-hint", "SPSS (.sav, .por), Stata (.dta), R (.rds, .RData), CSV, TSV, Excel (.xlsx, .xls) y SAS (.sas7bdat), ",
+          "hasta ", tags$strong(fmt_num(as.numeric(get_setting(con, "max_mb")), 0), " MB"), ". ",
           "No hace falta que los datos estén limpios: podrás recodificar y crear variables después."),
         textInput(ns("name"), "Nombre del proyecto (opcional)"),
         div(class = "c-divider", "o"),

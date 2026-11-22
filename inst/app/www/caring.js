@@ -59,6 +59,31 @@
     Shiny.setInputValue(input, { id: id, action: action, t: Date.now() }, { priority: "event" });
   };
 
+  // Comprueba el tamaño del archivo antes de subirlo (el límite lo fija Administración).
+  document.addEventListener("change", function (e) {
+    var t = e.target;
+    if (!t || t.type !== "file" || !t.closest) return;
+    var box = t.closest("[data-max-mb]");
+    if (!box) return;
+    var container = t.closest(".shiny-input-container") || box;
+    var msg = container.querySelector(".c-size-error");
+    if (msg) msg.remove();
+    var max = parseFloat(box.getAttribute("data-max-mb")) * 1024 * 1024;
+    var f = t.files && t.files[0];
+    if (f && max > 0 && f.size > max) {
+      e.stopImmediatePropagation();
+      e.stopPropagation();
+      t.value = "";
+      var mb = function (b) { return (b / 1024 / 1024).toLocaleString("es-ES", { maximumFractionDigits: 1 }); };
+      msg = document.createElement("div");
+      msg.className = "c-msg-error c-size-error";
+      msg.style.marginTop = "6px";
+      msg.textContent = "«" + f.name + "» pesa " + mb(f.size) + " MB y el máximo permitido es " +
+        mb(max) + " MB. Pide al equipo de administración que amplíe el límite.";
+      container.appendChild(msg);
+    }
+  }, true);
+
   // Pulsar Enter en un formulario de acceso equivale a pulsar su botón.
   $(document).on("keydown", "[data-enter-click] input", function (e) {
     if (e.key === "Enter") {

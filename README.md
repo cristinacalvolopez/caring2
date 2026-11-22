@@ -64,7 +64,7 @@ invitado se borran solos a las 24 horas.
 |---|---|---|
 | `CARING_STORAGE` | carpeta de datos | `./storage` |
 | `CARING_DB` | archivo de la base de datos | `<storage>/caring.sqlite` |
-| `CARING_MAX_MB` | tamaño máximo de subida (MB) | `200` |
+| `CARING_MAX_MB` | tamaño máximo por archivo (MB) hasta que se cambie en Administración | `200` |
 | `CARING_SECURE` | `true` si se sirve por https | `false` |
 | `CARING_MAIL` | `console` guarda los correos en archivos | `console` |
 
@@ -86,7 +86,6 @@ R/             código de la aplicación (un archivo por módulo)
 inst/app/www/  estilos, tipografía Roboto, logo y JavaScript (editor de informes)
 inst/app/templates/  plantilla de PowerPoint 16:9
 inst/extdata/  datos de demostración
-data-raw/      scripts que generan los datos de demostración y la plantilla
 tests/         pruebas automáticas
 app.R          punto de entrada (shiny::runApp)
 ```

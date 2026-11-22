@@ -89,14 +89,24 @@ audit <- function(con, user_id, accion, detalle = NA_character_) {
 
 get_setting <- function(con, clave) {
   r <- db_get(con, "SELECT valor FROM settings WHERE clave = ?", list(clave))
-  if (!nrow(r)) return(default_settings[[clave]])
+  if (!nrow(r)) {
+    if (clave == "max_mb") return(caring_config()$max_mb)
+    return(default_settings[[clave]])
+  }
   jsonlite::fromJSON(r$valor[1])
 }
 
 get_settings <- function(con) {
-  s <- default_settings
-  for (k in names(s)) s[[k]] <- get_setting(con, k)
+  s <- lapply(stats::setNames(names(default_settings), names(default_settings)), function(k) get_setting(con, k))
   s
+}
+
+# Aplica el tamaño máximo de subida (Shiny lo consulta en cada subida).
+apply_upload_limit <- function(con) {
+  mb <- as.numeric(get_setting(con, "max_mb"))
+  if (!length(mb) || is.na(mb) || mb <= 0) mb <- 200
+  options(shiny.maxRequestSize = mb * 1024^2)
+  invisible(mb)
 }
 
 set_setting <- function(con, clave, valor) {

@@ -133,6 +133,10 @@ mod_admin_server <- function(id, con, state, base_url) {
       tagList(
         checkboxInput(ns("s_registro"), "Registro abierto (cualquiera puede crear una cuenta)", s$registro_abierto),
         checkboxInput(ns("s_verificar"), "Verificar el correo al registrarse", s$verificar_correo),
+        numericInput(ns("s_max"), "Tamaño máximo por archivo de datos (MB)", s$max_mb, min = 1, max = 100000),
+        p(class = "c-hint", style = "margin-top:-8px",
+          "Cada proyecto abierto ocupa en memoria entre 1 y 3 veces lo que pesa su archivo. ",
+          "En el servidor, el límite de subida de Apache/nginx debe ser igual o mayor."),
         numericInput(ns("s_cuota"), "Cuota por usuario (MB)", s$cuota_mb, min = 10),
         numericInput(ns("s_invitados"), "Borrar proyectos de invitado tras (horas)", s$invitados_horas, min = 1),
         numericInput(ns("s_inactivas"), "Avisar de cuentas inactivas tras (años)", s$inactivas_anios, min = 1),
@@ -145,7 +149,12 @@ mod_admin_server <- function(id, con, state, base_url) {
       req(is_admin())
       set_setting(con, "registro_abierto", isTRUE(input$s_registro))
       set_setting(con, "verificar_correo", isTRUE(input$s_verificar))
+      set_setting(con, "max_mb", max(1, input$s_max %||% 200))
+      apply_upload_limit(con)
       set_setting(con, "cuota_mb", max(10, input$s_cuota %||% 2048))
+      if (isTRUE(input$s_max > input$s_cuota)) {
+        showNotification("Ojo: el tamaño máximo por archivo es mayor que la cuota por usuario.", type = "warning", duration = 8)
+      }
       set_setting(con, "invitados_horas", max(1, input$s_invitados %||% 24))
       set_setting(con, "inactivas_anios", max(1, input$s_inactivas %||% 2))
       audit(con, state$user$id, "admin_ajustes")

@@ -39,6 +39,11 @@ create_project <- function(con, user, file_path, file_name, nombre = NULL,
   if (!ext %in% names(formatos_admitidos)) {
     return(list(ok = FALSE, error = paste0("Formato no admitido (.", ext, ").")))
   }
+  max_mb <- as.numeric(get_setting(con, "max_mb"))
+  if (isTRUE(file.size(file_path) > max_mb * 1024^2)) {
+    return(list(ok = FALSE, error = paste0("El archivo pesa ", fmt_bytes(file.size(file_path)),
+                                           " y el máximo permitido es ", fmt_num(max_mb, 0), " MB.")))
+  }
   quota <- user_quota_mb(con, user) * 1024^2
   if (user_bytes(con, user$id) + file.size(file_path) > quota) {
     return(list(ok = FALSE, error = "No queda espacio en tu cuenta. Borra algún proyecto o pide más cuota."))

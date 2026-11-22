@@ -20,3 +20,6 @@ docs/
 diseno/
 referencia/
 old/
+
+# Scripts internos que generan los datos de demostración y la plantilla (solo en local)
+data-raw/

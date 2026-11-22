@@ -45,3 +45,21 @@ test_that("resultados guardados", {
   delete_result(dir, id)
   expect_length(list_results(dir), 0)
 })
+
+test_that("tamaño máximo por archivo ajustable desde administración", {
+  con <- local_storage()
+  withr::local_options(shiny.maxRequestSize = NULL)
+  a <- get_user(con, create_user(con, "a@ejemplo.com", "A", "contraseña-segura")$id)
+  expect_equal(get_setting(con, "max_mb"), 200)            # valor por defecto
+  expect_equal(apply_upload_limit(con), 200)
+  expect_equal(getOption("shiny.maxRequestSize"), 200 * 1024^2)
+  set_setting(con, "max_mb", 0.01)                          # ~10 KB: el demo (72 KB) no cabe
+  apply_upload_limit(con)
+  expect_equal(getOption("shiny.maxRequestSize"), 0.01 * 1024^2)
+  r <- create_project(con, a, demo_sav(), "demo.sav")
+  expect_false(r$ok)
+  expect_match(r$error, "máximo permitido")
+  set_setting(con, "max_mb", 1000)
+  expect_true(create_project(con, a, demo_sav(), "demo.sav")$ok)
+  expect_equal(get_settings(con)$max_mb, 1000)
+})

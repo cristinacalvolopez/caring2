@@ -28,10 +28,10 @@ run_app <- function(port = getOption("shiny.port"), launch.browser = interactive
 
 caring_app <- function() {
   cfg <- caring_config()
-  options(shiny.maxRequestSize = cfg$max_mb * 1024^2)
   dir.create(cfg$storage, recursive = TRUE, showWarnings = FALSE)
   shiny::addResourcePath("caring", app_file("www"))
   con <- get_con()
+  apply_upload_limit(con)
   try(cleanup_guests(con), silent = TRUE)
   shiny::onStop(function() {
     if (!is.null(.caring$con) && DBI::dbIsValid(.caring$con)) DBI::dbDisconnect(.caring$con)
