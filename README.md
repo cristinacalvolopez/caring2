@@ -27,6 +27,9 @@ proyectos compartidos (lector/editor) y un panel de administración.
 Necesitas **R ≥ 4.1** y, para exportar a PDF y poner las redes como imagen en
 PowerPoint y Word, **Google Chrome** o Chromium.
 
+Descarga el código con `git clone` o con el botón **Code → Download ZIP** de esta
+página (y descomprímelo). Después, en una terminal:
+
 ```bash
 git clone https://github.com/cristinacalvolopez/caring2.git
 cd caring2
@@ -34,12 +37,12 @@ Rscript instalar.R          # instala los paquetes que falten (solo la primera v
 Rscript -e 'shiny::runApp(launch.browser = TRUE)'
 ```
 
-O, desde la consola de R (RStudio, VS Code…), ejecuta el script `iniciar.R`,
-que instala lo que falte y abre la
-aplicación:
+O, desde la consola de R (RStudio, VS Code…), sitúate en la carpeta descargada y
+ejecuta `iniciar.R`, que instala lo que falte y abre la aplicación en el navegador:
 
 ```r
-source("~/Desktop/GitHUb/caring2/iniciar.R")
+setwd("ruta/donde/esta/caring2")   # la carpeta que has descargado
+source("iniciar.R")
 ```
 
 Se abre el navegador con la página de acceso. Para probar sin registrarte, pulsa

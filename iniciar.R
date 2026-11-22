@@ -3,19 +3,25 @@
 #
 # Uso: abre este archivo y ejecútalo entero (en RStudio, botón "Source";
 # en VS Code, Ctrl/Cmd + Mayús + S), o en la consola de R:
-#     source("~/Desktop/GitHUb/caring2/iniciar.R")
+#     setwd("ruta/donde/esta/caring2")
+#     source("iniciar.R")
 #
 # La primera vez instala los paquetes que falten (tarda unos minutos).
 # Para parar la aplicación: tecla Esc en la consola de R.
 # ------------------------------------------------------------------------------
 
-# 1. Carpeta del proyecto: la de este archivo (o la ruta habitual si no se detecta).
-carpeta <- tryCatch(dirname(normalizePath(sys.frame(1)$ofile)), error = function(e) NULL)
-if (is.null(carpeta) || !file.exists(file.path(carpeta, "DESCRIPTION"))) {
-  carpeta <- path.expand("~/Desktop/GitHUb/caring2")
+# 1. Carpeta del proyecto: la de este archivo o, si no se detecta, la carpeta actual.
+carpeta <- NULL
+for (i in rev(seq_len(sys.nframe()))) {
+  f <- tryCatch(sys.frame(i)$ofile, error = function(e) NULL)
+  if (is.character(f) && length(f) == 1) { carpeta <- dirname(normalizePath(f)); break }
 }
-if (!file.exists(file.path(carpeta, "DESCRIPTION"))) {
-  stop("No encuentro la carpeta de CARING 2. Cambia la ruta en la línea 'carpeta <- ...'.")
+if (is.null(carpeta) || !file.exists(file.path(carpeta, "DESCRIPTION"))) {
+  carpeta <- getwd()
+}
+if (!file.exists(file.path(carpeta, "DESCRIPTION")) || !file.exists(file.path(carpeta, "app.R"))) {
+  stop("No encuentro la carpeta de CARING 2. Sitúate en ella con setwd(\"ruta/donde/esta/caring2\") ",
+       "y vuelve a ejecutar source(\"iniciar.R\").")
 }
 setwd(carpeta)
 message("Carpeta de CARING 2: ", carpeta)

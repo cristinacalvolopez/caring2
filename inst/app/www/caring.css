@@ -1,4 +1,4 @@
-/* CARING 2 · identidad visual (ver docs/02-identidad-visual.md) */
+/* CARING 2 · identidad visual: azul #2F7BEE (oscuro #135DCD, claro #CBDEFB), Roboto 400/700 */
 :root {
   --c-blue: #2F7BEE;
   --c-blue-dark: #135DCD;
@@ -262,3 +262,13 @@ pre.c-code { background: #F5F5F5; border: 1px solid var(--c-border-2); border-ra
 .c-analysis .shiny-options-group .radio label:has(input:checked) { border-color: var(--c-blue); background: var(--c-blue-soft); }
 .c-analysis .shiny-options-group .radio input { margin-top: 4px; flex: 0 0 auto; }
 .c-analysis .shiny-options-group .radio span { display: flex; flex-direction: column; }
+
+/* Menú de usuario (desplegable de la barra superior): texto oscuro sobre fondo blanco */
+.c-topbar .dropdown-menu { min-width: 220px; padding: 6px 0; border: 1px solid var(--c-border); border-radius: 5px; box-shadow: 0 6px 18px rgba(0,0,0,.12); }
+.c-topbar .c-nav .dropdown-menu .dropdown-item,
+.c-topbar .c-nav .dropdown-menu a.dropdown-item { color: var(--c-text) !important; font-size: 15px; padding: 8px 16px; border: 0; text-decoration: none; display: block; }
+.c-topbar .c-nav .dropdown-menu .dropdown-item:hover,
+.c-topbar .c-nav .dropdown-menu .dropdown-item:focus { background: var(--c-blue-soft); color: var(--c-blue-dark) !important; }
+.c-topbar .c-nav .dropdown-menu #nav_logout { color: var(--c-error) !important; }
+.c-topbar .dropdown-menu .dropdown-item-text { color: var(--c-text); padding: 6px 16px; }
+.c-topbar .dropdown-menu .dropdown-item-text.small-2 { color: var(--c-text-2); padding-top: 0; }
