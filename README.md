@@ -34,6 +34,14 @@ Rscript instalar.R          # instala los paquetes que falten (solo la primera v
 Rscript -e 'shiny::runApp(launch.browser = TRUE)'
 ```
 
+O, desde la consola de R (RStudio, VS Code…), ejecuta el script `iniciar.R`,
+que instala lo que falte y abre la
+aplicación:
+
+```r
+source("~/Desktop/GitHUb/caring2/iniciar.R")
+```
+
 Se abre el navegador con la página de acceso. Para probar sin registrarte, pulsa
 **Probar sin cuenta** y después **Usar datos de demostración**.
 
