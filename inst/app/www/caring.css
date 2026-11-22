@@ -272,3 +272,11 @@ pre.c-code { background: #F5F5F5; border: 1px solid var(--c-border-2); border-ra
 .c-topbar .c-nav .dropdown-menu #nav_logout { color: var(--c-error) !important; }
 .c-topbar .dropdown-menu .dropdown-item-text { color: var(--c-text); padding: 6px 16px; }
 .c-topbar .dropdown-menu .dropdown-item-text.small-2 { color: var(--c-text-2); padding-top: 0; }
+
+/* Todos los menús desplegables: fondo blanco y texto negro, también dentro de la barra azul */
+.dropdown-menu { background: #fff !important; border: 1px solid var(--c-border); border-radius: 5px; box-shadow: 0 6px 18px rgba(0,0,0,.12); }
+.dropdown-menu .dropdown-item, .dropdown-menu a.dropdown-item, .dropdown-menu .dropdown-item-text,
+.c-topbar .c-nav .dropdown-menu a, .c-topbar .dropdown-menu span { color: var(--c-text) !important; }
+.dropdown-menu .dropdown-item:hover, .dropdown-menu .dropdown-item:focus { background: var(--c-blue-soft) !important; color: var(--c-blue-dark) !important; }
+.dropdown-menu .dropdown-item.text-danger, .c-topbar .c-nav .dropdown-menu #nav_logout { color: var(--c-error) !important; }
+.dropdown-menu .dropdown-item-text.small-2 { color: var(--c-text-2) !important; }

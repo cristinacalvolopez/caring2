@@ -40,6 +40,14 @@ caring_app <- function() {
   shiny::shinyApp(app_ui, app_server)
 }
 
+# Añade una versión a la URL de estilos y scripts para que el navegador no use una
+# copia antigua guardada cuando se actualiza la aplicación.
+asset_url <- function(file) {
+  path <- app_file("www", file)
+  v <- if (file.exists(path)) substr(digest::digest(file = path, algo = "md5"), 1, 8) else "0"
+  paste0("caring/", file, "?v=", v)
+}
+
 app_ui <- function(request) {
   bslib::page(
     title = "CARING · Coincidencias en encuestas",
@@ -47,10 +55,10 @@ app_ui <- function(request) {
     lang = "es",
     tags$head(
       tags$link(rel = "stylesheet", href = "caring/fonts/roboto.css"),
-      tags$link(rel = "stylesheet", href = "caring/caring.css"),
+      tags$link(rel = "stylesheet", href = asset_url("caring.css")),
       tags$link(rel = "icon", href = "data:,"),
-      tags$script(src = "caring/caring.js"),
-      tags$script(src = "caring/editor.js"),
+      tags$script(src = asset_url("caring.js")),
+      tags$script(src = asset_url("editor.js")),
       # dependencias que se usan dentro de uiOutput: se cargan desde el principio
       htmltools::findDependencies(list(
         reactable::reactableOutput("__dep1"),
