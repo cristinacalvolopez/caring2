@@ -69,7 +69,7 @@ wrap_labels <- function(x, width = 18) {
 
 # Una variable ----------------------------------------------------------------------
 
-explore_one <- function(d, v, weight = NULL) {
+explore_one <- function(d, v, weight = NULL, chart = NULL) {
   need_var(d, v)
   x <- d[[v]]
   w <- weights_of(d, weight)
@@ -86,15 +86,8 @@ explore_one <- function(d, v, weight = NULL) {
                                               `% válido` = "", check.names = FALSE))
     tab <- rbind(tab, data.frame(Categoría = "Total", n = round(tot, 1), `%` = "100,0 %",
                                  `% válido` = "", check.names = FALSE))
-    pd <- data.frame(cat = factor(lv, levels = rev(lv)), pct = n / sum(n), n = n)
-    p <- ggplot2::ggplot(pd, ggplot2::aes(x = .data$pct, y = .data$cat)) +
-      ggplot2::geom_col(fill = caring_blue, width = 0.7) +
-      ggplot2::geom_text(ggplot2::aes(label = fmt_pct(.data$pct)), hjust = -0.1, size = 3.6, colour = "#333333") +
-      ggplot2::scale_x_continuous(labels = function(z) fmt_pct(z, 0), expand = ggplot2::expansion(c(0, 0.15))) +
-      ggplot2::scale_y_discrete(labels = function(z) wrap_labels(z, 28)) +
-      ggplot2::labs(x = "% de respuestas válidas", y = NULL) +
-      theme_caring() + ggplot2::theme(panel.grid.major.y = ggplot2::element_blank(),
-                                      panel.grid.major.x = ggplot2::element_line(colour = "#E3E3E3"))
+    pd <- data.frame(cat = factor(lv, levels = lv), pct = n / sum(n), n = n)
+    p <- plot_cat(pd, pick_chart(chart, "cat"))
     list(title = lab, subtitle = paste0("Frecuencias · n = ", fmt_int(round(sum(n))), wtxt),
          table = tab, stats = paste0("Categoría más frecuente: ", lv[which.max(n)], " (", fmt_pct(max(n) / sum(n)), ")."),
          plot = p)
@@ -108,14 +101,7 @@ explore_one <- function(d, v, weight = NULL) {
       Valor = c(fmt_int(sum(ok)), fmt_int(sum(!ok)), fmt_num(m), fmt_num(qs[2]), fmt_num(wsd(x, w)),
                 fmt_num(min(x, na.rm = TRUE)), fmt_num(qs[1]), fmt_num(qs[3]), fmt_num(max(x, na.rm = TRUE))))
     pd <- data.frame(x = x[ok], w = w[ok])
-    p <- ggplot2::ggplot(pd, ggplot2::aes(x = .data$x, weight = .data$w)) +
-      ggplot2::geom_histogram(bins = min(30, max(10, ceiling(log2(nrow(pd)) + 1) * 2)),
-                              fill = caring_blue, colour = "white") +
-      ggplot2::geom_vline(xintercept = m, colour = "#135DCD", linetype = "dashed") +
-      ggplot2::annotate("text", x = m, y = Inf, label = paste("media", fmt_num(m, 1)),
-                        vjust = 1.5, hjust = -0.05, colour = "#135DCD", size = 3.6) +
-      ggplot2::labs(x = lab, y = "Casos") + theme_caring() +
-      ggplot2::theme(panel.grid.major.y = ggplot2::element_line(colour = "#E3E3E3"))
+    p <- plot_num(pd, pick_chart(chart, "num"), m, lab)
     list(title = lab, subtitle = paste0("Distribución · n = ", fmt_int(sum(ok)), wtxt),
          table = tab, stats = paste0("Media ", fmt_num(m), "; la mitad de los casos está entre ",
                                      fmt_num(qs[1]), " y ", fmt_num(qs[3]), "."),
@@ -132,13 +118,13 @@ explore_one <- function(d, v, weight = NULL) {
 
 # Dos variables -------------------------------------------------------------------------
 
-explore_two <- function(d, v1, v2, weight = NULL, pct = "col", chart = "agrupadas") {
+explore_two <- function(d, v1, v2, weight = NULL, pct = "col", chart = NULL) {
   need_var(d, v1); need_var(d, v2)
   x <- d[[v1]]; y <- d[[v2]]
   if (is.factor(x) && is.factor(y)) return(explore_catcat(d, v1, v2, weight, pct, chart))
-  if (is.numeric(x) && is.factor(y)) return(explore_numcat(d, v1, v2, weight))
-  if (is.factor(x) && is.numeric(y)) return(explore_numcat(d, v2, v1, weight))
-  if (is.numeric(x) && is.numeric(y)) return(explore_numnum(d, v1, v2, weight))
+  if (is.numeric(x) && is.factor(y)) return(explore_numcat(d, v1, v2, weight, chart))
+  if (is.factor(x) && is.numeric(y)) return(explore_numcat(d, v2, v1, weight, chart))
+  if (is.numeric(x) && is.numeric(y)) return(explore_numnum(d, v1, v2, weight, chart))
   stop("No se puede cruzar una variable de texto. Cambia su tipo en el paso Datos.")
 }
 
@@ -178,29 +164,14 @@ explore_catcat <- function(d, v1, v2, weight, pct, chart) {
   } else {
     pd$grupo <- pd$b; pd$serie <- pd$a; xl <- var_label(d, v2); fl <- var_label(d, v1)
   }
-  pal <- rep(caring_palette, length.out = nlevels(pd$serie))
-  p <- ggplot2::ggplot(pd, ggplot2::aes(x = .data$grupo, y = .data$pct, fill = .data$serie)) +
-    ggplot2::geom_col(
-      position = if (chart == "apiladas") "stack" else ggplot2::position_dodge(width = 0.8),
-      width = if (chart == "apiladas") 0.7 else 0.75) +
-    (if (chart == "apiladas" || nlevels(pd$serie) <= 4)
-      ggplot2::geom_text(ggplot2::aes(label = ifelse(.data$pct >= 0.04, fmt_pct(.data$pct, 0), "")),
-        position = if (chart == "apiladas") ggplot2::position_stack(vjust = 0.5) else ggplot2::position_dodge(width = 0.8),
-        vjust = if (chart == "apiladas") 0.5 else -0.4, size = 3.3,
-        colour = if (chart == "apiladas") "#FFFFFF" else "#333333")) +
-    ggplot2::scale_fill_manual(values = pal) +
-    ggplot2::scale_y_continuous(labels = function(z) fmt_pct(z, 0), expand = ggplot2::expansion(c(0, 0.05))) +
-    ggplot2::scale_x_discrete(labels = function(z) wrap_labels(z, 14)) +
-    ggplot2::labs(x = xl, y = switch(pct, col = paste("% dentro de", tolower(xl)),
-                                     row = paste("% dentro de", tolower(xl)), "% del total"), fill = fl) +
-    theme_caring() + ggplot2::theme(panel.grid.major.y = ggplot2::element_line(colour = "#E3E3E3"))
+  p <- plot_catcat(pd, ct, pick_chart(chart, "catcat"), pct, xl, fl)
   list(title = paste(var_label(d, v1), "según", tolower(var_label(d, v2))),
        subtitle = paste0(switch(pct, col = "% por columna", row = "% por fila", "% sobre el total"),
                          " · n = ", fmt_int(round(n)), if (!is.null(weight) && nzchar(weight)) " · ponderado" else ""),
        table = tab, stats = stats_txt, plot = p)
 }
 
-explore_numcat <- function(d, vn, vc, weight) {
+explore_numcat <- function(d, vn, vc, weight, chart = NULL) {
   w <- weights_of(d, weight)
   ok <- !is.na(d[[vn]]) & !is.na(d[[vc]])
   x <- d[[vn]][ok]; g <- droplevels(d[[vc]][ok]); ww <- w[ok]
@@ -221,21 +192,14 @@ explore_numcat <- function(d, vn, vc, weight) {
                         " · ", p_txt(a[1, "Pr(>F)"]), " · η² = ", fmt_num(eta2, 3),
                         ". Diferencia de medias ", signif_text(a[1, "Pr(>F)"]), ".")
   }
-  pd <- data.frame(x = x, g = g)
-  pal <- rep(caring_palette, length.out = nlevels(g))
-  p <- ggplot2::ggplot(pd, ggplot2::aes(x = .data$g, y = .data$x, fill = .data$g)) +
-    ggplot2::geom_boxplot(width = 0.55, alpha = 0.85, outlier.colour = "#999999", show.legend = FALSE) +
-    ggplot2::stat_summary(fun = mean, geom = "point", shape = 23, size = 3, fill = "white", colour = "#000000") +
-    ggplot2::scale_fill_manual(values = pal) +
-    ggplot2::scale_x_discrete(labels = function(z) wrap_labels(z, 14)) +
-    ggplot2::labs(x = var_label(d, vc), y = var_label(d, vn)) +
-    theme_caring() + ggplot2::theme(panel.grid.major.y = ggplot2::element_line(colour = "#E3E3E3"))
+  pd <- data.frame(x = x, g = g, w = ww)
+  p <- plot_numcat(pd, pick_chart(chart, "numcat"), var_label(d, vc), var_label(d, vn))
   list(title = paste(var_label(d, vn), "según", tolower(var_label(d, vc))),
-       subtitle = paste0("Medias por grupo (el rombo es la media) · n = ", fmt_int(length(x))),
+       subtitle = paste0("Comparación de grupos · n = ", fmt_int(length(x))),
        table = tab, stats = stats_txt, plot = p)
 }
 
-explore_numnum <- function(d, v1, v2, weight) {
+explore_numnum <- function(d, v1, v2, weight, chart = NULL) {
   ok <- !is.na(d[[v1]]) & !is.na(d[[v2]])
   x <- d[[v1]][ok]; y <- d[[v2]][ok]
   pe <- suppressWarnings(stats::cor.test(x, y, method = "pearson"))
@@ -247,15 +211,9 @@ explore_numnum <- function(d, v1, v2, weight) {
   r <- unname(pe$estimate)
   stats_txt <- paste0("Relación ", strength(r), if (r >= 0) " y positiva" else " y negativa",
                       ", ", signif_text(pe$p.value), ".")
-  pd <- data.frame(x = x, y = y)
-  if (nrow(pd) > 3000) pd <- pd[sample(nrow(pd), 3000), ]
-  p <- ggplot2::ggplot(pd, ggplot2::aes(x = .data$x, y = .data$y)) +
-    ggplot2::geom_point(colour = caring_blue, alpha = 0.45, size = 1.8) +
-    ggplot2::geom_smooth(method = "lm", formula = y ~ x, colour = "#135DCD", se = TRUE, fill = "#CBDEFB") +
-    ggplot2::labs(x = var_label(d, v1), y = var_label(d, v2)) +
-    theme_caring() + ggplot2::theme(panel.grid.major = ggplot2::element_line(colour = "#E3E3E3"))
+  p <- plot_numnum(data.frame(x = x, y = y), pick_chart(chart, "numnum"), var_label(d, v1), var_label(d, v2))
   list(title = paste(var_label(d, v1), "y", tolower(var_label(d, v2))),
-       subtitle = paste0("Dispersión con recta de regresión · n = ", fmt_int(length(x))),
+       subtitle = paste0("Relación entre dos variables numéricas · n = ", fmt_int(length(x))),
        table = tab, stats = stats_txt, plot = p)
 }
 

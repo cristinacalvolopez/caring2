@@ -22,13 +22,7 @@ mod_redes_ui <- function(id) {
             bslib::accordion_panel("Opciones avanzadas",
               textInput(ns("title"), "Título del gráfico"),
               textInput(ns("note"), "Nota al pie"),
-              checkboxInput(ns("bonferroni"), "Corrección de Bonferroni (más exigente con muchas variables)"),
-              numericInput(ns("min_freq"), "Frecuencia mínima de una categoría (casos)", value = 0, min = 0),
-              numericInput(ns("degree"), "Ocultar nodos con menos de … enlaces", value = 0, min = 0),
-              selectInput(ns("layout"), "Disposición de los nodos", layout_methods),
-              sliderInput(ns("cex"), "Tamaño del texto", min = 0.6, max = 2, value = 1, step = 0.1),
-              numericInput(ns("nclusters"), "Conglomerados (mapa factorial)", value = 0, min = 0, max = 12),
-              radioButtons(ns("order"), "Orden del modelo log-lineal", c("2 (pares)" = 2, "3 (tríos)" = 3), inline = TRUE)
+              uiOutput(ns("adv_opts"))
             )
           ),
           actionButton(ns("go"), "Crear red", class = "btn-primary btn-lg-c w-100")
@@ -92,28 +86,61 @@ mod_redes_server <- function(id, ctx) {
       )
     })
 
+    # Opciones de cada tipo de análisis (net_options() dice cuáles corresponden a cada uno)
+    keep <- function(id, default) { v <- isolate(input[[id]]); if (is.null(v)) default else v }
+
     output$main_opts <- renderUI({
-      t <- input$type %||% "coincidencias"
+      o <- net_options(input$type %||% "coincidencias")
       tagList(
-        if (t %in% c("coincidencias", "multiple")) selectInput(ns("procedure"), "Unir dos categorías cuando…",
+        if ("procedure" %in% o) selectInput(ns("procedure"), "Unir dos categorías cuando…",
           stats::setNames(similarity_measures,
             ifelse(names(similarity_measures) == "Haberman (residuos ajustados)",
                    "coinciden más de lo esperado (Haberman)", names(similarity_measures))),
-          selected = isolate(input$procedure) %||% "Haberman"),
-        checkboxInput(ns("signif"), "Mostrar solo relaciones significativas (p < 0,05)", value = isolate(input$signif) %||% TRUE),
-        if (t %in% c("coincidencias", "correlaciones", "loglineal", "multiple"))
-          selectInput(ns("community"), "Agrupar en comunidades", community_methods,
-                      selected = isolate(input$community) %||% "louvain")
+          selected = keep("procedure", "Haberman")),
+        if ("method" %in% o) selectInput(ns("method"), "Tipo de correlación",
+          c("Pearson (relación lineal)" = "pearson", "Spearman (por rangos)" = "spearman", "Kendall (por rangos, muestras pequeñas)" = "kendall"),
+          selected = keep("method", "pearson")),
+        if ("order" %in% o) radioButtons(ns("order"), "Orden del modelo log-lineal",
+          c("2 · asociaciones entre pares" = 2, "3 · también entre tríos" = 3), selected = keep("order", 2)),
+        if ("nclusters" %in% o) numericInput(ns("nclusters"), "Número de conglomerados (0 = ninguno)",
+          value = keep("nclusters", 0), min = 0, max = 12),
+        if ("clusters" %in% o) selectInput(ns("clusters"), "Método de conglomerados",
+          c("K-medias" = "kmeans", "PAM (medoides)" = "pam", "Jerárquico" = "hclust"), selected = keep("clusters", "kmeans")),
+        if ("signif" %in% o) checkboxInput(ns("signif"), "Mostrar solo relaciones significativas (p < 0,05)", value = keep("signif", TRUE)),
+        if ("community" %in% o) selectInput(ns("community"), "Agrupar en comunidades", community_methods,
+          selected = keep("community", "louvain"))
       )
     })
 
+    output$adv_opts <- renderUI({
+      o <- net_options(input$type %||% "coincidencias")
+      tagList(
+        if ("bonferroni" %in% o) checkboxInput(ns("bonferroni"), "Corrección de Bonferroni (más exigente con muchas variables)",
+                                               value = keep("bonferroni", FALSE)),
+        if ("min_freq" %in% o) numericInput(ns("min_freq"), "Frecuencia mínima de una categoría (casos)",
+                                            value = keep("min_freq", 0), min = 0),
+        if ("degree" %in% o) numericInput(ns("degree"), "Ocultar nodos con menos de … enlaces", value = keep("degree", 0), min = 0),
+        if ("layout" %in% o) selectInput(ns("layout"), "Disposición de los nodos", layout_methods, selected = keep("layout", "")),
+        sliderInput(ns("cex"), "Tamaño del texto", min = 0.6, max = 2, value = keep("cex", 1), step = 0.1)
+      )
+    })
+
+
+    # Solo se envían las opciones que corresponden al tipo de análisis elegido.
     spec <- reactive({
-      list(type = input$type, vars = input$vars, dep = input$dep,
-           weight = input$weight, signif = isTRUE(input$signif), procedure = input$procedure,
-           community = input$community, layout = input$layout, title = input$title, note = input$note,
-           bonferroni = isTRUE(input$bonferroni), min_freq = input$min_freq, degree = input$degree,
-           nclusters = input$nclusters, order = as.integer(input$order %||% 2), cex = input$cex,
-           sep = input$sep)
+      t <- input$type %||% "coincidencias"
+      o <- net_options(t)
+      val <- function(k, v) if (k %in% o) v
+      compact(list(type = t, vars = input$vars, dep = if (t == "regresion") input$dep,
+           weight = input$weight, title = input$title, note = input$note, cex = input$cex,
+           sep = if (t == "multiple") input$sep,
+           signif = if ("signif" %in% o) isTRUE(input$signif),
+           procedure = val("procedure", input$procedure), method = val("method", input$method),
+           community = val("community", input$community), layout = val("layout", input$layout),
+           bonferroni = if ("bonferroni" %in% o) isTRUE(input$bonferroni),
+           min_freq = val("min_freq", input$min_freq), degree = val("degree", input$degree),
+           nclusters = val("nclusters", input$nclusters), clusters = val("clusters", input$clusters),
+           order = if ("order" %in% o) as.integer(input$order %||% 2)))
     })
 
     observeEvent(input$go, {

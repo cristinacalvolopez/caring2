@@ -27,6 +27,18 @@ net_types <- list(
     vars = "una variable de texto con separador", min = 1)
 )
 
+# Opciones que tienen sentido en cada tipo de análisis (las demás no se muestran).
+net_options <- function(type) {
+  switch(type,
+    coincidencias = c("procedure", "signif", "community", "bonferroni", "min_freq", "degree", "layout"),
+    correlaciones = c("method", "signif", "community", "bonferroni", "degree", "layout"),
+    factorial = c("nclusters", "clusters"),
+    loglineal = c("order", "signif", "community", "degree", "layout"),
+    regresion = c("signif", "layout"),
+    multiple = c("procedure", "signif", "community", "min_freq", "degree", "layout"),
+    character())
+}
+
 similarity_measures <- c(
   "Haberman (residuos ajustados)" = "Haberman", "Coincidencias" = "coincidences",
   "Esperadas" = "expected", "Relativas" = "relative", "Jaccard" = "Jaccard",
@@ -82,6 +94,7 @@ net_build <- function(d, spec) {
       check_types(d, vars, "num", min_need)
       do.call(netCoin::netCorr, c(compact(list(
         variables = d[vars], weight = if (!is.null(w)) d[[w]],
+        method = spec$method %||% "pearson",
         criteria = "p", maxL = if (isFALSE(spec$signif)) Inf else 0.05,
         Bonferroni = isTRUE(spec$bonferroni))), common))
     },
@@ -94,7 +107,7 @@ net_build <- function(d, spec) {
       args$community <- NULL
       if (isTRUE(spec$nclusters >= 2)) {
         args$nclusters <- spec$nclusters
-        args$clusters <- "kmeans"
+        args$clusters <- spec$clusters %||% "kmeans"
       }
       do.call(netCoin::surScat, args)
     },

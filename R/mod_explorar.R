@@ -65,17 +65,23 @@ mod_explorar_server <- function(id, ctx) {
       updateSelectInput(session, "weight", choices = c("Sin ponderar" = "", nums), selected = wsel)
     })
 
-    output$options <- renderUI({
+    # Tipo de combinación (una categórica, dos numéricas...) para ofrecer solo los gráficos que tienen sentido
+    kind <- reactive({
       d <- data()
       req(input$v1 %in% names(d))
-      if (input$mode == "two" && isTRUE(input$v2 %in% names(d)) && is.factor(d[[input$v1]]) && is.factor(d[[input$v2]])) {
-        tagList(
-          radioButtons(ns("pct"), "Porcentajes",
+      if (input$mode == "two") { req(input$v2 %in% names(d)); chart_kind(d, input$v1, input$v2) }
+      else chart_kind(d, input$v1)
+    })
+
+    output$options <- renderUI({
+      k <- kind()
+      ch <- chart_choices(k)
+      tagList(
+        if (length(ch)) selectInput(ns("chart"), "Tipo de gráfico", ch,
+                                    selected = if (isTRUE(isolate(input$chart) %in% ch)) isolate(input$chart) else ch[1]),
+        if (k == "catcat") radioButtons(ns("pct"), "Porcentajes",
             c("Por columna" = "col", "Por fila" = "row", "Sobre el total" = "total"),
-            selected = isolate(input$pct) %||% "col"),
-          radioButtons(ns("chart"), "Gráfico", c("Barras agrupadas" = "agrupadas", "Barras apiladas" = "apiladas"),
-                       selected = isolate(input$chart) %||% "agrupadas"))
-      }
+            selected = isolate(input$pct) %||% "col"))
     })
 
     result <- reactive({
@@ -86,9 +92,9 @@ mod_explorar_server <- function(id, ctx) {
         if (input$mode == "two") {
           req(input$v2 %in% names(d))
           if (input$v1 == input$v2) stop("Elige dos variables distintas.")
-          explore_two(d, input$v1, input$v2, weight = w, pct = input$pct %||% "col", chart = input$chart %||% "agrupadas")
+          explore_two(d, input$v1, input$v2, weight = w, pct = input$pct %||% "col", chart = input$chart)
         } else {
-          explore_one(d, input$v1, weight = w)
+          explore_one(d, input$v1, weight = w, chart = input$chart)
         }
       }, error = function(e) list(error = conditionMessage(e)))
     })

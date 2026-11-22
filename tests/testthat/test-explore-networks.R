@@ -56,3 +56,42 @@ test_that("la red se guarda como HTML autocontenido", {
   expect_false(grepl('href="styles/', html, fixed = TRUE))
   expect_match(html, "font/woff2")
 })
+
+test_that("todos los tipos de gráfico de Explorar se dibujan", {
+  d <- read_any(demo_sav())
+  casos <- list(cat = list("educacion"), num = list("ingresos"),
+                catcat = list("internet", "educacion"), numcat = list("edad", "educacion"),
+                numnum = list("edad", "ingresos"))
+  for (k in names(casos)) {
+    v <- casos[[k]]
+    expect_equal(chart_kind(d, v[[1]], if (length(v) > 1) v[[2]]), k)
+    for (ch in chart_choices(k)) {
+      for (pct in if (k == "catcat") c("col", "row", "total") else "col") {
+        r <- if (length(v) == 1) explore_one(d, v[[1]], weight = "peso", chart = ch)
+             else explore_two(d, v[[1]], v[[2]], weight = "peso", pct = pct, chart = ch)
+        f <- tempfile(fileext = ".png")
+        expect_silent(suppressMessages(save_plot_png(r$plot, f)))
+        expect_gt(file.size(f), 5000)
+      }
+    }
+  }
+  expect_equal(pick_chart("inventado", "cat"), "barras_h")
+  expect_equal(chart_kind(d, "aficiones"), "texto")
+})
+
+test_that("cada tipo de red tiene sus propias opciones y las usa", {
+  expect_true("order" %in% net_options("loglineal"))
+  for (t in setdiff(names(net_types), "loglineal")) expect_false("order" %in% net_options(t), info = t)
+  expect_false("signif" %in% net_options("factorial"))
+  expect_true(all(c("nclusters", "clusters") %in% net_options("factorial")))
+  expect_true("method" %in% net_options("correlaciones"))
+  d <- read_any(demo_sav())
+  for (m in c("pearson", "spearman", "kendall")) {
+    expect_true(inherits(net_build(d, list(type = "correlaciones", vars = c("edad", "ingresos", "ideologia"), method = m)), "netCoin"))
+  }
+  for (cl in c("kmeans", "pam", "hclust")) {
+    expect_true(inherits(suppressWarnings(net_build(d, list(type = "factorial", vars = c("genero", "educacion", "internet"),
+                                                     nclusters = 3, clusters = cl))), "netCoin"))
+  }
+  expect_true(inherits(suppressWarnings(net_build(d, list(type = "loglineal", vars = c("genero", "internet", "prensa"), order = 3))), "netCoin"))
+})
