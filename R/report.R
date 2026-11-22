@@ -25,10 +25,10 @@ page_template <- function(template, type = "slides", title = "Título") {
         el("shape", 0, 0, 595, 260, style = list(bg = "#2F7BEE")),
         el("text", 50, 110, 495, 70, text = title, style = txt_style(30, TRUE, "#FFFFFF")),
         el("text", 50, 190, 495, 40, text = "Subtítulo o autoría", style = txt_style(15, FALSE, "#FFFFFF")),
-        el("text", 50, 300, 495, 200, text = "Escribe aquí la introducción del informe.", style = txt_style(12))),
+        el("text", 50, 290, 495, 60, text = "Escribe aquí la introducción del informe.", style = txt_style(12))),
       blanca = list(),
       list(el("text", 50, 50, 495, 40, text = "Apartado", style = txt_style(20, TRUE, "#135DCD")),
-           el("text", 50, 100, 495, 120, text = "Escribe aquí el texto del apartado.", style = txt_style(12))))
+           el("text", 50, 100, 495, 60, text = "Escribe aquí el texto del apartado.", style = txt_style(12))))
     return(list(id = substr(gsub("-", "", new_id()), 1, 10), bg = "#FFFFFF", elements = els))
   }
   els <- switch(template,
@@ -50,7 +50,7 @@ page_template <- function(template, type = "slides", title = "Título") {
     list(
       el("shape", 0, 0, 960, 90, style = list(bg = "#2F7BEE")),
       el("text", 48, 18, 864, 56, text = "Título de la diapositiva", style = txt_style(30, TRUE, "#FFFFFF")),
-      el("text", 48, 120, 864, 370, text = "Escribe aquí el contenido.", style = txt_style(20))))
+      el("text", 48, 110, 864, 50, text = "Escribe aquí el contenido.", style = txt_style(20))))
   list(id = substr(gsub("-", "", new_id()), 1, 10), bg = "#FFFFFF", elements = els)
 }
 

@@ -2,25 +2,39 @@
 (function () {
   var COOKIE = "caring_session";
 
+  // Algunos visores (paneles de editores, iframes) no dejan usar cookies:
+  // en ese caso CARING funciona igual, solo que sin "Recordarme".
   function getCookie(name) {
-    var m = document.cookie.match(new RegExp("(?:^|; )" + name + "=([^;]*)"));
-    return m ? decodeURIComponent(m[1]) : "";
+    try {
+      var m = document.cookie.match(new RegExp("(?:^|; )" + name + "=([^;]*)"));
+      return m ? decodeURIComponent(m[1]) : "";
+    } catch (e) { return ""; }
+  }
+  function setCookie(value) {
+    try { document.cookie = value; } catch (e) { /* sin cookies */ }
   }
 
   // Al conectar, el servidor recibe el token de sesión guardado (si existe).
-  $(document).on("shiny:connected", function () {
+  var sent = false;
+  function sendAuth() {
+    if (sent || !window.Shiny || !Shiny.setInputValue) return;
+    sent = true;
     Shiny.setInputValue("auth_token", getCookie(COOKIE) || "", { priority: "event" });
+  }
+  $(document).on("shiny:connected", sendAuth);
+  $(function () {
+    if (window.Shiny && Shiny.shinyapp && Shiny.shinyapp.isConnected && Shiny.shinyapp.isConnected()) sendAuth();
   });
 
   Shiny.addCustomMessageHandler("caring-set-cookie", function (m) {
     var c = COOKIE + "=" + encodeURIComponent(m.token) + "; path=/; SameSite=Lax";
     if (m.days) c += "; max-age=" + Math.round(m.days * 86400);
     if (m.secure) c += "; Secure";
-    document.cookie = c;
+    setCookie(c);
   });
 
   Shiny.addCustomMessageHandler("caring-clear-cookie", function (m) {
-    document.cookie = COOKIE + "=; path=/; max-age=0; SameSite=Lax";
+    setCookie(COOKIE + "=; path=/; max-age=0; SameSite=Lax");
   });
 
   // Quita ?verificar= / ?recuperar= de la barra de direcciones una vez usados.

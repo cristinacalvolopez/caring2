@@ -80,6 +80,20 @@ app_server <- function(input, output, session) {
   }
 
   # Arranque: enlaces de verificación / recuperación y sesión guardada en la cookie
+  # Plan B: si el navegador no envía el token en 4 s, se muestra el acceso igualmente.
+  auth_wait <- reactiveVal(TRUE)
+  observe({
+    if (isTRUE(isolate(auth_wait()))) {
+      invalidateLater(4000)
+      if (!is.null(isolate(state$user)) || !identical(isolate(state$page), "loading")) return(auth_wait(FALSE))
+      if (isTRUE(isolate(session$userData$waited))) {
+        auth_wait(FALSE)
+        state$page <- "login"
+      }
+      session$userData$waited <- TRUE
+    }
+  })
+
   observeEvent(input$auth_token, {
     q <- parseQueryString(session$clientData$url_search)
     if (!is.null(q$verificar)) {
@@ -102,6 +116,7 @@ app_server <- function(input, output, session) {
   }, once = TRUE)
 
   on_login <- function(user, remember) {
+    auth_wait(FALSE)
     days <- if (remember) 30 else 1
     token <- create_session(con, user$id, days)
     session$sendCustomMessage("caring-set-cookie",
@@ -138,7 +153,7 @@ app_server <- function(input, output, session) {
   output$page <- renderUI({
     page <- state$page
     state$login_version
-    if (page == "loading") return(div(class = "c-empty", style = "padding-top:30vh", "Cargando…"))
+    if (page == "loading") return(div(class = "c-empty", style = "padding-top:30vh", "Cargando CARING…"))
     if (page == "login" || is.null(state$user)) {
       return(mod_login_ui("login", notice = state$notice, reset_token = state$reset_token,
                           registro_abierto = get_setting(con, "registro_abierto")))

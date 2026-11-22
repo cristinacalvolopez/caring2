@@ -26,6 +26,27 @@ source(file.path(carpeta, "instalar.R"), local = TRUE)
 # 3. Cargar el código de la aplicación
 pkgload::load_all(carpeta, quiet = TRUE)
 
-# 4. Arrancar (se abre el navegador)
-message("Arrancando CARING 2… (pulsa Esc para pararlo)")
-shiny::runApp(carpeta, launch.browser = TRUE)
+# 4. Arrancar y abrir en el navegador del sistema (Chrome, Safari, Firefox…).
+#    No se usa el panel interno de VS Code/RStudio: algunos bloquean partes de la app.
+puerto <- getOption("shiny.port", 3838)
+libre <- tryCatch({ srv <- httpuv::startServer("127.0.0.1", puerto, list()); httpuv::stopServer(srv); TRUE },
+                  error = function(e) FALSE)
+if (!libre) puerto <- httpuv::randomPort()
+url <- paste0("http://127.0.0.1:", puerto)
+abrir_navegador <- function(u) {
+  if (identical(getOption("caring.no_browser"), TRUE)) return(invisible())
+  sys <- Sys.info()[["sysname"]]
+  ok <- tryCatch({
+    if (sys == "Darwin") system2("open", u, wait = FALSE)
+    else if (sys == "Windows") shell.exec(u)
+    else system2("xdg-open", u, wait = FALSE, stdout = FALSE, stderr = FALSE)
+    TRUE
+  }, error = function(e) FALSE)
+  if (!isTRUE(ok)) utils::browseURL(u)
+}
+message("\n==============================================================")
+message("  CARING 2 está arrancando en:  ", url)
+message("  Si no se abre solo, copia esa dirección en Chrome o Safari.")
+message("  Para pararlo: tecla Esc en esta consola.")
+message("==============================================================\n")
+shiny::runApp(carpeta, port = puerto, launch.browser = abrir_navegador)

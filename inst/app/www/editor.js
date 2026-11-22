@@ -138,7 +138,19 @@
       var room = size().h - grid().margin - bottom;
       return { x: grid().margin, y: bottom, w: size().w - 2 * grid().margin, h: Math.max(grid().row * 4, Math.min(h, room)) };
     }
-    var s = size(), off = (p.elements.length % 6) * 14;
+    // Busca un hueco libre debajo del contenido; si no cabe, reduce el tamaño y prueba otra vez.
+    var s = size(), m = 30, top = contentTop(p);
+    var busy = p.elements.filter(isLayoutEl);
+    for (var scale = 1; scale >= 0.4; scale -= 0.15) {
+      var ww = Math.round(w * scale), hh = Math.round(h * scale);
+      for (var y = top; y + hh <= s.h - m; y += 10) {
+        for (var x = m; x + ww <= s.w - m; x += 10) {
+          var c = { x: x, y: y, w: ww, h: hh };
+          if (!busy.some(function (o) { return overlap(c, o); })) return c;
+        }
+      }
+    }
+    var off = (p.elements.length % 6) * 14;
     return { x: Math.round((s.w - w) / 2) + off, y: Math.round((s.h - h) / 2) + off, w: w, h: h };
   }
 

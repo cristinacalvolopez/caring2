@@ -70,8 +70,9 @@ mod_projects_server <- function(id, con, state, on_open) {
         p(class = "c-hint", "SPSS (.sav, .por), Stata (.dta), R (.rds, .RData), CSV, TSV, Excel (.xlsx, .xls) y SAS (.sas7bdat). ",
           "No hace falta que los datos estén limpios: podrás recodificar y crear variables después."),
         textInput(ns("name"), "Nombre del proyecto (opcional)"),
+        div(class = "c-divider", "o"),
+        actionButton(ns("demo"), "Usar los datos de demostración", class = "btn-outline-primary w-100"),
         footer = tagList(
-          actionButton(ns("demo"), "Usar datos de demostración", class = "btn-link-c me-auto"),
           modalButton("Cancelar"),
           actionButton(ns("create"), "Crear proyecto", class = "btn-primary"))
       ))
