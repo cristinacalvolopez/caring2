@@ -21,13 +21,15 @@ mod_datos_ui <- function(id) {
           )
         ),
         div(class = "col-lg-5",
-          div(class = "c-card c-card-pad mb-4", uiOutput(ns("editor"))),
-          div(class = "c-card c-card-pad mb-4", uiOutput(ns("mrsets_ui"))),
-          div(class = "c-card c-card-pad c-history",
-            div(class = "d-flex justify-content-between align-items-center mb-2",
-              tags$h2("Historial"),
-              downloadLink(ns("dl_script"), "Descargar script R")),
-            uiOutput(ns("history")))
+          # Columna flotante: acompaña al usuario mientras recorre la lista de variables
+          div(class = "c-sticky-col",
+            div(class = "c-card c-card-pad mb-4", uiOutput(ns("editor"))),
+            div(class = "c-card c-card-pad mb-4", uiOutput(ns("mrsets_ui"))),
+            div(class = "c-card c-card-pad c-history",
+              div(class = "d-flex justify-content-between align-items-center mb-2",
+                tags$h2("Historial"),
+                downloadLink(ns("dl_script"), "Descargar script R")),
+              uiOutput(ns("history"))))
         )
       )
     ),

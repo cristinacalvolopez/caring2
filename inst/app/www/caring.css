@@ -292,3 +292,11 @@ pre.c-code { background: #F5F5F5; border: 1px solid var(--c-border-2); border-ra
 .c-table td.tot { font-weight: 700; background: #F7FAFF; }
 .c-table tr.total td { border-top: 2px solid #C6C6C6; }
 .c-dir-note { font-size: 14px; font-weight: 700; color: var(--c-blue-dark); margin: 0 0 8px; }
+
+/* Datos: la columna del editor flota y acompaña al desplazamiento por la lista de variables */
+@media (min-width: 992px) {
+  .c-sticky-col { position: sticky; top: 12px; max-height: calc(100vh - 24px); overflow-y: auto;
+                  padding-right: 4px; scrollbar-width: thin; }
+  .c-sticky-col::-webkit-scrollbar { width: 6px; }
+  .c-sticky-col::-webkit-scrollbar-thumb { background: var(--c-border); border-radius: 3px; }
+}
