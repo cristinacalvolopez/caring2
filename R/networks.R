@@ -23,8 +23,8 @@ net_types <- list(
     vars = "una dependiente y varias independientes", min = 1),
   multiple = list(
     titulo = "Respuesta múltiple",
-    desc = "Coincidencias entre opciones de una pregunta de respuesta múltiple (allNet)",
-    vars = "una variable de texto con separador", min = 1)
+    desc = "Qué opciones de una o varias preguntas de respuesta múltiple se marcan juntas (allNet)",
+    vars = "uno o varios conjuntos de respuesta múltiple", min = 1)
 )
 
 # Opciones que tienen sentido en cada tipo de análisis (las demás no se muestran).
@@ -64,7 +64,7 @@ layout_methods <- c(
 net_build <- function(d, spec) {
   type <- spec$type
   vars <- spec$vars %||% character()
-  for (v in c(vars, spec$dep)) need_var(d, v)
+  if (type != "multiple") for (v in c(vars, spec$dep)) need_var(d, v)
   w <- if (length(spec$weight) && nzchar(spec$weight)) spec$weight else NULL
   if (!is.null(w)) need_var(d, w)
   common <- compact(list(
@@ -129,19 +129,57 @@ net_build <- function(d, spec) {
       do.call(netCoin::glmCoin, args)
     },
     multiple = {
-      v <- vars[1]
-      x <- d[[v]]
-      sep <- spec$sep %||% ";"
-      inc <- netCoin::dichotomize(data.frame(x = as.character(x)), "x", sep = sep, add = FALSE)
-      inc <- inc[, !grepl(":None$|^x:", names(inc)), drop = FALSE]
-      if (ncol(inc) < 2) stop("No se han encontrado al menos dos opciones con el separador «", sep, "».")
+      inc <- mr_network_incidences(d, spec)
+      w_all <- if (!is.null(w)) d[[w]] else rep(1, nrow(d))
+      ok <- stats::complete.cases(inc$m) & !is.na(w_all)
+      m <- inc$m[ok, , drop = FALSE]
+      keep <- colSums(m) > 0
+      m <- m[, keep, drop = FALSE]
+      if (ncol(m) < 2) stop("Hacen falta al menos dos opciones con respuestas para dibujar la red.")
+      nodes <- data.frame(nombre = names(m), grupo = inc$grupo[keep], check.names = FALSE)
       do.call(netCoin::allNet, c(compact(list(
-        incidences = inc, weight = if (!is.null(w)) d[[w]],
-        procedures = spec$procedure %||% "Haberman", criteria = "Z", maxL = maxL)), common))
+        incidences = m, weight = if (!is.null(w)) w_all[ok],
+        nodes = nodes, color = "grupo",
+        procedures = spec$procedure %||% "Haberman", criteria = "Z", maxL = maxL,
+        minimum = if (isTRUE(spec$min_freq > 0)) spec$min_freq)), common))
     },
     stop("Tipo de red desconocido")
   )
   net
+}
+
+# Tabla de incidencias para la red de respuesta múltiple: uno o varios conjuntos
+# (spec$vars: "mr:nombre" o una variable de texto) y, opcionalmente, otras variables
+# categóricas (spec$cross) cuyas categorías se añaden como nodos de otro grupo.
+mr_network_incidences <- function(d, spec) {
+  ids <- unlist(spec$vars)
+  if (!length(ids)) stop("Elige al menos un conjunto de respuesta múltiple.")
+  sets <- mrsets(d)
+  partes <- list(); grupo <- character()
+  for (id in ids) {
+    s <- if (startsWith(id, "mr:")) sets[[sub("^mr:", "", id)]]
+         else if (id %in% names(d)) list(name = id, label = var_label(d, id), type = "texto", vars = id, sep = spec$sep %||% ";")
+    if (is.null(s)) stop("No existe el conjunto «", sub("^mr:", "", id), "».")
+    m <- mr_incidences(d, s)
+    if (ncol(m) < 1) stop("El conjunto «", mr_label(s), "» no tiene opciones con respuestas.")
+    if (length(ids) > 1) names(m) <- paste0(mr_label(s), ": ", names(m))
+    partes[[length(partes) + 1]] <- m
+    grupo <- c(grupo, rep(mr_label(s), ncol(m)))
+  }
+  for (v in unlist(spec$cross)) {
+    need_var(d, v)
+    f <- d[[v]]
+    if (!is.factor(f)) stop("Para cruzar, «", var_label(d, v), "» debe ser categórica (puedes agruparla en tramos en Datos).")
+    f <- droplevels(f)
+    dm <- vapply(levels(f), function(l) ifelse(is.na(f), NA_integer_, as.integer(f == l)), integer(length(f)))
+    dm <- as.data.frame(matrix(dm, nrow = length(f)), check.names = FALSE)
+    names(dm) <- paste0(var_label(d, v), ": ", levels(f))
+    partes[[length(partes) + 1]] <- dm
+    grupo <- c(grupo, rep(var_label(d, v), ncol(dm)))
+  }
+  m <- do.call(cbind, partes)
+  names(m) <- make.unique(names(m), sep = " ")
+  list(m = m, grupo = grupo)
 }
 
 nz <- function(x) if (is.null(x) || length(x) == 0 || identical(x, "") || all(is.na(x))) NULL else x

@@ -14,11 +14,20 @@ chart_choices <- function(kind) {
                "Densidades superpuestas" = "densidades", "Puntos" = "puntos"),
     numnum = c("Dispersión con recta" = "recta", "Dispersión con curva suavizada" = "curva",
                "Densidad 2D (cuadrícula)" = "densidad2d", "Medias por tramos" = "tramos"),
+    mr = c("Barras horizontales" = "barras_h", "Barras verticales" = "barras_v", "Puntos (lollipop)" = "puntos"),
+    mrcat = c("Barras agrupadas" = "agrupadas", "Mapa de calor" = "calor", "Burbujas" = "burbujas"),
     character())
 }
 
 # Qué combinación forman una o dos variables.
 chart_kind <- function(d, v1, v2 = NULL) {
+  es_mr <- function(v) !is.null(v) && startsWith(v, "mr:")
+  if (es_mr(v1) || es_mr(v2)) {
+    if (is.null(v2)) return("mr")
+    otra <- if (es_mr(v1)) v2 else v1
+    if (es_mr(otra)) return("texto")
+    return(if (is.factor(d[[otra]])) "mrcat" else "texto")
+  }
   x <- d[[v1]]
   if (is.null(v2)) return(if (is.factor(x)) "cat" else if (is.numeric(x)) "num" else "texto")
   y <- d[[v2]]
@@ -168,10 +177,14 @@ plot_catcat <- function(pd, ct, chart, pct, xl, fl) {
           ggplot2::geom_text(ggplot2::aes(label = ifelse(.data$pct >= 0.04, fmt_pct(.data$pct, 0), "")),
             position = if (apil) ggplot2::position_stack(vjust = 0.5) else ggplot2::position_dodge(width = 0.8),
             vjust = if (apil) 0.5 else -0.4, size = 3.3, colour = if (apil) "#FFFFFF" else "#333333")) +
-        ggplot2::scale_fill_manual(values = pal) +
+        ggplot2::scale_fill_manual(values = pal, labels = function(z) wrap_labels(z, 34)) +
         ggplot2::scale_y_continuous(labels = function(z) fmt_pct(z, 0), expand = ggplot2::expansion(c(0, 0.05))) +
         ggplot2::scale_x_discrete(labels = function(z) wrap_labels(z, 14)) +
-        ggplot2::labs(x = xl, y = ylab, fill = fl) + theme_caring() + grid_y()
+        ggplot2::labs(x = xl, y = ylab, fill = fl) + theme_caring() + grid_y() +
+        # leyenda en varias columnas cuando las etiquetas son largas, para que no se corte
+        (if (sum(nchar(levels(pd$serie))) > 60)
+          list(ggplot2::guides(fill = ggplot2::guide_legend(ncol = 2, byrow = TRUE)),
+               ggplot2::theme(legend.position = "bottom")))
     })
 }
 

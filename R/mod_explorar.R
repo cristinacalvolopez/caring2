@@ -51,14 +51,22 @@ mod_explorar_server <- function(id, ctx) {
         l <- var_label(d, v)
         if (l == v) v else paste0(l, " (", v, ")")
       }, "")
-      ch[!vapply(d, function(x) inherits(x, c("Date", "POSIXct")), logical(1))]
+      ch <- ch[!vapply(d, function(x) inherits(x, c("Date", "POSIXct")), logical(1))]
+      sets <- mrsets(d)
+      if (length(sets)) {
+        mr <- stats::setNames(paste0("mr:", names(sets)), paste0("Conjunto: ", vapply(sets, mr_label, "")))
+        ch <- c(mr, ch)
+      }
+      ch
     }
+    valid_choice <- function(d, v) !is.null(v) && (v %in% names(d) || (startsWith(v, "mr:") && sub("^mr:", "", v) %in% names(mrsets(d))))
 
     observeEvent(data(), {
       d <- data()
       ch <- var_choices(d)
-      keep1 <- if (isTRUE(input$v1 %in% ch)) input$v1 else ch[min(2, length(ch))]
-      keep2 <- if (isTRUE(input$v2 %in% ch)) input$v2 else ch[min(3, length(ch))]
+      vars_only <- ch[!startsWith(ch, "mr:")]
+      keep1 <- if (isTRUE(input$v1 %in% ch)) input$v1 else vars_only[min(2, length(vars_only))]
+      keep2 <- if (isTRUE(input$v2 %in% ch)) input$v2 else vars_only[min(3, length(vars_only))]
       updateSelectInput(session, "v1", choices = ch, selected = keep1)
       updateSelectInput(session, "v2", choices = ch, selected = keep2)
       nums <- numeric_vars(d)
@@ -69,8 +77,8 @@ mod_explorar_server <- function(id, ctx) {
     # Tipo de combinación (una categórica, dos numéricas...) para ofrecer solo los gráficos que tienen sentido
     kind <- reactive({
       d <- data()
-      req(input$v1 %in% names(d))
-      if (input$mode == "two") { req(input$v2 %in% names(d)); chart_kind(d, input$v1, input$v2) }
+      req(valid_choice(d, input$v1))
+      if (input$mode == "two") { req(valid_choice(d, input$v2)); chart_kind(d, input$v1, input$v2) }
       else chart_kind(d, input$v1)
     })
 
@@ -92,6 +100,7 @@ mod_explorar_server <- function(id, ctx) {
       tagList(
         if (length(ch)) selectInput(ns("chart"), "Tipo de gráfico", ch,
                                     selected = if (isTRUE(isolate(input$chart) %in% ch)) isolate(input$chart) else ch[1]),
+        if (k == "mrcat") checkboxInput(ns("counts"), "Mostrar también los recuentos (n) en la tabla", value = isTRUE(isolate(input$counts))),
         if (k == "catcat") tagList(
           radioButtons(ns("pct"), "Porcentajes",
             c("Verticales (cada columna suma 100 %)" = "col", "Horizontales (cada fila suma 100 %)" = "row",
@@ -102,14 +111,23 @@ mod_explorar_server <- function(id, ctx) {
 
     result <- reactive({
       d <- data()
-      req(input$v1 %in% names(d))
+      req(valid_choice(d, input$v1))
       w <- if (nzchar(input$weight %||% "")) input$weight
       tryCatch({
         if (input$mode == "two") {
-          req(input$v2 %in% names(d))
+          req(valid_choice(d, input$v2))
           if (input$v1 == input$v2) stop("Elige dos variables distintas.")
-          explore_two(d, input$v1, input$v2, weight = w, pct = input$pct %||% "col", chart = input$chart,
-                      counts = isTRUE(input$counts))
+          if (startsWith(input$v1, "mr:") || startsWith(input$v2, "mr:")) {
+            if (startsWith(input$v1, "mr:") && startsWith(input$v2, "mr:")) stop("Cruza el conjunto con una variable categórica, no con otro conjunto.")
+            set <- if (startsWith(input$v1, "mr:")) input$v1 else input$v2
+            otra <- if (startsWith(input$v1, "mr:")) input$v2 else input$v1
+            explore_mr_cat(d, set, otra, weight = w, chart = input$chart, counts = isTRUE(input$counts))
+          } else {
+            explore_two(d, input$v1, input$v2, weight = w, pct = input$pct %||% "col", chart = input$chart,
+                        counts = isTRUE(input$counts))
+          }
+        } else if (startsWith(input$v1, "mr:")) {
+          explore_mr(d, input$v1, weight = w, chart = input$chart)
         } else {
           explore_one(d, input$v1, weight = w, chart = input$chart)
         }
@@ -135,7 +153,9 @@ mod_explorar_server <- function(id, ctx) {
     output$table <- renderUI({
       r <- result()
       req(is.null(r$error))
-      dir_note <- if (input$mode == "two" && identical(kind(), "catcat")) {
+      dir_note <- if (input$mode == "two" && identical(kind(), "mrcat")) {
+        "↓ % de casos de cada grupo: las columnas suman más de 100 % porque se puede marcar más de una opción."
+      } else if (input$mode == "two" && identical(kind(), "catcat")) {
         switch(input$pct %||% "col",
           col = "↓ Porcentajes verticales: cada columna suma 100 % (fila Total).",
           row = "→ Porcentajes horizontales: cada fila suma 100 % (columna Total).",

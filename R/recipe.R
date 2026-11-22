@@ -6,7 +6,14 @@
 #' Aplica una receta (lista de pasos) a un data.frame.
 #' @export
 apply_recipe <- function(d, recipe) {
-  for (s in recipe) d <- apply_step(d, s)
+  for (s in recipe) {
+    sets <- attr(d, "mrsets", exact = TRUE)
+    d <- apply_step(d, s)
+    # los conjuntos de respuesta múltiple viajan con los datos en todos los pasos
+    if (is.null(attr(d, "mrsets", exact = TRUE)) && !is.null(sets) && !s$op %in% c("mrset", "mrset_drop", "drop")) {
+      attr(d, "mrsets") <- sets
+    }
+  }
   d
 }
 
@@ -33,6 +40,14 @@ apply_step <- function(d, s) {
     rename = {
       need_var(d, s$var); valid_new_name(d, s$to, allow = s$var)
       names(d)[names(d) == s$var] <- s$to
+      mr_rename_var(d, s$var, s$to)
+    },
+    mrset = mr_add(d, s),
+    mrset_drop = {
+      sets <- mrsets(d)
+      if (is.null(sets[[s$name]])) stop("No existe el conjunto «", s$name, "».")
+      sets[[s$name]] <- NULL
+      attr(d, "mrsets") <- if (length(sets)) sets
       d
     },
     label = {
@@ -110,7 +125,10 @@ apply_step <- function(d, s) {
     },
     drop = {
       for (v in s$vars) need_var(d, v)
-      d[setdiff(names(d), s$vars)]
+      sets <- attr(d, "mrsets", exact = TRUE)
+      out <- d[setdiff(names(d), s$vars)]
+      attr(out, "mrsets") <- sets
+      mr_drop_vars(out, s$vars)
     },
     stop("Operación desconocida: ", s$op)
   )
@@ -119,7 +137,9 @@ apply_step <- function(d, s) {
 # Selecciona filas conservando las etiquetas de las variables.
 subset_rows <- function(d, rows) {
   labs <- lapply(d, attr, "label", exact = TRUE)
+  sets <- attr(d, "mrsets", exact = TRUE)
   out <- d[rows, , drop = FALSE]
+  attr(out, "mrsets") <- sets
   for (v in names(out)) if (!is.null(labs[[v]])) attr(out[[v]], "label") <- labs[[v]]
   rownames(out) <- NULL
   out
@@ -205,6 +225,10 @@ step_label <- function(s) {
     compute = paste0("Crear ", s$to, " = ", s$expr),
     filter = paste0("Filtrar casos: ", s$expr),
     drop = paste0("Eliminar ", paste(s$vars, collapse = ", ")),
+    mrset = paste0("Conjunto de respuesta múltiple «", s$name, "» (",
+                   switch(s$type, dicotomias = "dicotomías", categorias = "categorías", "texto"), ", ",
+                   length(unlist(s$vars)), if (length(unlist(s$vars)) == 1) " variable)" else " variables)"),
+    mrset_drop = paste0("Quitar el conjunto «", s$name, "»"),
     s$op
   )
 }
@@ -241,6 +265,21 @@ step_code <- function(s) {
     compute = paste0("datos[[", q(s$to), "]] <- with(datos, ", s$expr, ")"),
     filter = paste0("datos <- subset(datos, ", s$expr, ")"),
     drop = paste0("datos <- datos[setdiff(names(datos), ", qv(s$vars), ")]"),
+    mrset = {
+      v <- unlist(s$vars)
+      switch(s$type,
+        dicotomias = c(paste0("# Cada variable es una opción; cuenta como marcada si vale ", q(s$value)),
+                       paste0("conjuntos[[", q(s$name), "]] <- sapply(datos[", qv(v), "], function(x) as.integer(as.character(x) == ", q(s$value), "))")),
+        categorias = c("# Cada variable es una mención; las opciones son sus categorías",
+                       paste0("menciones <- lapply(datos[", qv(v), "], as.character)"),
+                       "opciones <- unique(unlist(lapply(menciones, function(x) unique(stats::na.omit(x)))))",
+                       paste0("conjuntos[[", q(s$name), "]] <- sapply(opciones, function(o) as.integer(Reduce(`|`, lapply(menciones, function(x) !is.na(x) & x == o))))")),
+        c(paste0("# Opciones separadas por ", q(s$sep %||% ";"), " en una variable de texto"),
+          paste0("partes <- strsplit(as.character(", col(v[1]), "), ", q(s$sep %||% ";"), ", fixed = TRUE)"),
+          "opciones <- sort(unique(trimws(unlist(partes))))",
+          paste0("conjuntos[[", q(s$name), "]] <- t(sapply(partes, function(p) as.integer(opciones %in% trimws(p))))")))
+    },
+    mrset_drop = paste0("conjuntos[[", q(s$name), "]] <- NULL"),
     paste("#", s$op)
   )
 }
@@ -254,6 +293,7 @@ recipe_to_code <- function(recipe, archivo = "datos.sav") {
     "# Necesita el paquete caring2 para leer los datos con las mismas reglas.",
     "",
     paste0("datos <- caring2::read_any(", q(archivo), ")"),
+    if (any(vapply(recipe, function(s) s$op == "mrset", logical(1)))) "conjuntos <- list()   # conjuntos de respuesta múltiple (tablas 0/1)",
     ""
   )
   for (i in seq_along(recipe)) {

@@ -9,7 +9,8 @@ En un mismo proyecto se puede:
 
 1. **Datos.** Subir una base de datos tal como esté (SPSS, Stata, R, CSV, Excel o SAS),
    y renombrar, recodificar, marcar perdidos, cambiar tipos, crear variables con
-   fórmulas y filtrar casos. El archivo original nunca se modifica: cada cambio queda
+   fórmulas, filtrar casos y definir conjuntos de respuesta múltiple (dicotomías,
+   menciones o texto con separador; CARING sugiere los que detecta). El archivo original nunca se modifica: cada cambio queda
    en un historial que se puede deshacer y exportar como script de R.
 2. **Explorar.** Ver tablas, gráficos y pruebas estadísticas de una o dos variables,
    con ponderación opcional.

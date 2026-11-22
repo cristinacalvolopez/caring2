@@ -79,10 +79,25 @@ mod_redes_server <- function(id, ctx) {
         regresion = tagList(
           selectInput(ns("dep"), "Variable que quieres explicar", choices = c(cats, nums)),
           multi(c(cats, nums), "Variables explicativas", "Pueden ser categóricas o numéricas.")),
-        multiple = tagList(
-          selectInput(ns("vars"), "Variable de respuesta múltiple", choices = txt),
-          textInput(ns("sep"), "Separador de las opciones", value = ";"),
-          p(class = "c-hint", style = "margin-top:-8px", "Una variable de texto con varias respuestas por caso, por ejemplo «deporte;cine;viajes»."))
+        multiple = {
+          sets <- mrsets(d)
+          mr <- if (length(sets)) stats::setNames(paste0("mr:", names(sets)), vapply(sets, mr_label, "")) else character()
+          ch <- c(mr, if (length(txt)) stats::setNames(unname(txt), paste("Texto:", names(txt))))
+          tagList(
+            selectizeInput(ns("vars"), "Conjuntos de respuesta múltiple", choices = ch, multiple = TRUE,
+                           selected = intersect(prev, ch),
+                           options = list(plugins = list("remove_button"), placeholder = "Elige uno o varios conjuntos…")),
+            if (!length(sets)) p(class = "c-hint", style = "margin-top:-8px",
+              "Todavía no hay conjuntos. Créalos en el paso Datos con «+ Conjunto de respuesta múltiple»",
+              if (length(txt)) " o elige una variable de texto con las opciones separadas." else "."),
+            conditionalPanel("input.vars && input.vars.some(function(v){ return v.indexOf('mr:') !== 0; })", ns = ns,
+              textInput(ns("sep"), "Separador de las opciones (variables de texto)", value = isolate(input$sep) %||% ";")),
+            selectizeInput(ns("cross"), "Cruzar con (opcional)", choices = cats, multiple = TRUE,
+                           selected = intersect(isolate(input$cross), cats),
+                           options = list(plugins = list("remove_button"), placeholder = "Variables categóricas…")),
+            p(class = "c-hint", style = "margin-top:-8px",
+              "Las categorías de estas variables aparecen como nodos de otro color, para ver qué opciones marcan más unos grupos que otros."))
+        }
       )
     })
 
@@ -133,7 +148,7 @@ mod_redes_server <- function(id, ctx) {
       val <- function(k, v) if (k %in% o) v
       compact(list(type = t, vars = input$vars, dep = if (t == "regresion") input$dep,
            weight = input$weight, title = input$title, note = input$note, cex = input$cex,
-           sep = if (t == "multiple") input$sep,
+           sep = if (t == "multiple") input$sep, cross = if (t == "multiple") input$cross,
            signif = if ("signif" %in% o) isTRUE(input$signif),
            procedure = val("procedure", input$procedure), method = val("method", input$method),
            community = val("community", input$community), layout = val("layout", input$layout),
@@ -241,7 +256,12 @@ default_net_title <- function(d, s) {
   base <- net_types[[s$type]]$titulo
   if (s$type == "regresion" && length(s$dep) && nzchar(s$dep)) return(paste(base, "·", var_label(d, s$dep)))
   vars <- s$vars
-  if (length(vars) && length(vars) <= 3) paste(base, "·", paste(vapply(vars, function(v) var_label(d, v), ""), collapse = ", "))
+  nombre <- function(v) if (startsWith(v, "mr:")) mr_label(mrsets(d)[[sub("^mr:", "", v)]] %||% list(name = v)) else var_label(d, v)
+  if (s$type == "multiple" && length(s$cross)) {
+    return(paste(base, "·", paste(vapply(vars, nombre, ""), collapse = ", "), "según",
+                 paste(tolower(vapply(s$cross, function(v) var_label(d, v), "")), collapse = ", ")))
+  }
+  if (length(vars) && length(vars) <= 3) paste(base, "·", paste(vapply(vars, nombre, ""), collapse = ", "))
   else paste(base, "·", length(vars), "variables")
 }
 

@@ -14,12 +14,15 @@ mod_datos_ui <- function(id) {
             div(class = "d-flex flex-wrap gap-2 justify-content-between align-items-center",
                 style = "padding:12px 16px; border-bottom:1px solid #E3E3E3",
               span(class = "c-hint", "Pulsa una variable para editarla."),
-              actionButton(ns("new_var"), "+ Nueva variable", class = "btn-primary")),
+              div(class = "d-flex flex-wrap gap-2",
+                actionButton(ns("new_mr"), "+ Conjunto de respuesta múltiple", class = "btn-outline-primary"),
+                actionButton(ns("new_var"), "+ Nueva variable", class = "btn-primary"))),
             div(style = "padding:4px 8px 8px", reactable::reactableOutput(ns("vars")))
           )
         ),
         div(class = "col-lg-5",
           div(class = "c-card c-card-pad mb-4", uiOutput(ns("editor"))),
+          div(class = "c-card c-card-pad mb-4", uiOutput(ns("mrsets_ui"))),
           div(class = "c-card c-card-pad c-history",
             div(class = "d-flex justify-content-between align-items-center mb-2",
               tags$h2("Historial"),
@@ -285,6 +288,122 @@ mod_datos_server <- function(id, ctx) {
       ok <- ctx$add_step(list(op = "compute", to = nm, expr = trimws(input$nv_expr %||% ""),
                               label = trimws(input$nv_label %||% "")))
       if (ok) { removeModal(); sel(nm) }
+    })
+
+    # Conjuntos de respuesta múltiple ----------------------------------------------------
+    output$mrsets_ui <- renderUI({
+      d <- data()
+      sets <- mrsets(d)
+      sug <- mr_suggest(d)
+      tipo <- function(t) switch(t, dicotomias = "dicotomías", categorias = "categorías", "texto")
+      tagList(
+        tags$h2("Respuesta múltiple"),
+        if (!length(sets)) p(class = "c-hint", "Agrupa en un conjunto las variables de una pregunta de respuesta múltiple ",
+                             "para analizarlas juntas en Explorar y en Redes."),
+        if (length(sets)) tags$ul(class = "list-unstyled mb-2", lapply(sets, function(s) tags$li(
+          class = "d-flex justify-content-between align-items-start mb-2",
+          div(tags$strong(mr_label(s)), span(class = "small-2", paste0(" · ", tipo(s$type), " · ", length(s$vars),
+                                                                         if (length(s$vars) == 1) " variable" else " variables")),
+              div(class = "small-2", paste(s$vars, collapse = ", "))),
+          if (ctx$can_edit()) tags$a(href = "#", class = "small-2",
+            onclick = sprintf("caringAction('%s', '%s', 'drop', event)", ns("mr_action"), s$name), "quitar")))),
+        if (length(sug) && ctx$can_edit()) div(class = "c-stats mt-2",
+          tags$strong("Sugerencias"), " (variables con el mismo prefijo y las mismas categorías):",
+          tags$ul(class = "list-unstyled mb-0 mt-1", lapply(seq_along(sug), function(i) {
+            g <- sug[[i]]
+            tags$li(class = "d-flex justify-content-between align-items-center gap-2 mt-1",
+              span(tags$code(g$name), paste0(" · ", length(g$vars), " variables (", tipo(g$type),
+                                             if (!is.null(g$value)) paste0(", cuenta «", g$value, "»"), ")")),
+              tags$a(href = "#", onclick = sprintf("caringAction('%s', '%d', 'suggest', event)", ns("mr_action"), i), "crear"))
+          })))
+      )
+    })
+
+    mr_modal <- function(pre = list()) {
+      d <- data()
+      showModal(modalDialog(title = "Conjunto de respuesta múltiple", size = "l", easyClose = TRUE,
+        p(class = "c-hint", "Agrupa las variables de una pregunta en la que se puede marcar más de una opción. ",
+          "No se modifica ninguna variable: el conjunto queda en el historial y se puede quitar."),
+        div(class = "row",
+          div(class = "col-md-6", textInput(ns("mr_name"), "Nombre (sin espacios)", value = pre$name %||% "", placeholder = "aficiones")),
+          div(class = "col-md-6", textInput(ns("mr_label"), "Etiqueta (opcional)", value = pre$label %||% "", placeholder = "Aficiones en el tiempo libre"))),
+        radioButtons(ns("mr_type"), "¿Cómo están codificadas las respuestas?", mr_types, selected = pre$type %||% "dicotomias"),
+        uiOutput(ns("mr_type_help")),
+        selectizeInput(ns("mr_vars"), "Variables", choices = names(d), selected = pre$vars, multiple = TRUE,
+                       options = list(plugins = list("remove_button", "drag_drop"), placeholder = "Elige las variables…")),
+        uiOutput(ns("mr_extra")),
+        uiOutput(ns("mr_preview")),
+        footer = tagList(modalButton("Cancelar"), actionButton(ns("mr_create"), "Crear conjunto", class = "btn-primary"))))
+      session$userData$mr_pre_value <- pre$value
+    }
+
+    observeEvent(input$new_mr, {
+      if (!ctx$can_edit()) return(showNotification("Este proyecto es de solo lectura.", type = "error"))
+      mr_modal()
+    })
+
+    observeEvent(input$mr_action, {
+      a <- input$mr_action
+      if (a$action == "drop") {
+        ctx$add_step(list(op = "mrset_drop", name = a$id))
+      } else if (a$action == "suggest") {
+        g <- mr_suggest(data())[[as.integer(a$id)]]
+        req(g)
+        mr_modal(g)
+      }
+    })
+
+    output$mr_type_help <- renderUI({
+      p(class = "c-hint", style = "margin-top:-8px", switch(input$mr_type %||% "dicotomias",
+        dicotomias = "Ejemplo: p5_deporte, p5_cine, p5_viajes… cada una con Sí/No o 1/0. Cada variable es una opción.",
+        categorias = "Ejemplo: p5_1 (primera mención), p5_2 (segunda)… cada una con el código de la opción elegida.",
+        texto = "Ejemplo: una variable con «deporte;cine;viajes». Elige una sola variable y el separador."))
+    })
+
+    observeEvent(input$mr_type, {
+      d <- data()
+      ch <- if (identical(input$mr_type, "texto")) names(d)[vapply(d, function(x) is.character(x) || is.factor(x), logical(1))]
+            else names(d)[vapply(d, function(x) is.factor(x) || is.numeric(x), logical(1))]
+      updateSelectizeInput(session, "mr_vars", choices = ch, selected = intersect(isolate(input$mr_vars), ch))
+    }, ignoreInit = TRUE)
+
+    output$mr_extra <- renderUI({
+      t <- input$mr_type %||% "dicotomias"
+      d <- data()
+      if (t == "dicotomias") {
+        vs <- intersect(input$mr_vars, names(d))
+        vals <- unique(unlist(lapply(vs, function(v) if (is.factor(d[[v]])) levels(d[[v]]) else as.character(sort(unique(stats::na.omit(d[[v]])))))))
+        if (!length(vals)) return(NULL)
+        pre <- session$userData$mr_pre_value
+        marcado <- c("Sí", "Si", "1", "Mencionado", "Marcado", "Seleccionado", "Yes", "TRUE")
+        sel <- if (!is.null(pre) && pre %in% vals) pre else (vals[vals %in% marcado][1] %||% vals[1])
+        if (is.na(sel)) sel <- vals[1]
+        selectInput(ns("mr_value"), "Valor que cuenta como «marcado»", vals, selected = sel)
+      } else if (t == "texto") {
+        textInput(ns("mr_sep"), "Separador de las opciones", value = ";")
+      }
+    })
+
+    mr_draft <- reactive({
+      list(op = "mrset", name = trimws(input$mr_name %||% ""), label = trimws(input$mr_label %||% ""),
+           type = input$mr_type %||% "dicotomias", vars = input$mr_vars,
+           value = input$mr_value, sep = input$mr_sep %||% ";")
+    })
+
+    output$mr_preview <- renderUI({
+      s <- mr_draft()
+      if (!length(s$vars)) return(NULL)
+      if (!nzchar(s$name)) s$name <- "vista_previa"
+      x <- tryCatch(mr_add(data(), s), error = function(e) e)
+      if (inherits(x, "error")) return(div(class = "c-msg-error", conditionMessage(x)))
+      f <- mr_freq(x, mrsets(x)[[s$name]])
+      tab <- data.frame(Opción = f$opcion, n = fmt_int(round(f$n)), `% de casos` = fmt_pct(f$pct_casos), check.names = FALSE)
+      div(tags$strong("Vista previa"), span(class = "small-2", paste0(" · ", fmt_int(round(attr(f, "casos"))), " casos con respuesta")),
+          div(style = "max-height:260px; overflow:auto", html_table(tab)))
+    })
+
+    observeEvent(input$mr_create, {
+      if (ctx$add_step(mr_draft())) { removeModal(); showNotification("Conjunto creado. Ya puedes usarlo en Explorar y en Redes.", type = "message") }
     })
 
     # Historial -------------------------------------------------------------------------

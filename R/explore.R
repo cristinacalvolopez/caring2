@@ -253,3 +253,79 @@ flextable_caring <- function(tab) {
   ft <- flextable::autofit(ft)
   ft
 }
+
+# Respuesta múltiple ----------------------------------------------------------------------
+
+mr_find <- function(d, id) {
+  name <- sub("^mr:", "", id)
+  s <- mrsets(d)[[name]]
+  if (is.null(s)) stop("No existe el conjunto de respuesta múltiple «", name, "».")
+  s
+}
+
+# Frecuencias de un conjunto: % de casos (suma más de 100 %) y % de respuestas.
+explore_mr <- function(d, id, weight = NULL, chart = NULL) {
+  s <- mr_find(d, id)
+  w <- weights_of(d, weight)
+  f <- mr_freq(d, s, w)
+  casos <- attr(f, "casos"); resp <- attr(f, "respuestas")
+  tab <- data.frame(Opción = f$opcion, n = fmt_int(round(f$n)), `% de casos` = fmt_pct(f$pct_casos),
+                    `% de respuestas` = fmt_pct(f$pct_resp), check.names = FALSE)
+  tab <- rbind(tab, data.frame(Opción = "Total", n = fmt_int(round(resp)), `% de casos` = fmt_pct(resp / casos),
+                               `% de respuestas` = "100,0 %", check.names = FALSE))
+  pd <- data.frame(cat = factor(f$opcion, levels = f$opcion), pct = f$pct_casos, n = f$n)
+  ch <- pick_chart(chart, "mr")
+  p <- plot_cat(pd, ch) + ggplot2::labs(x = if (ch == "barras_v") NULL else "% de casos",
+                                        y = if (ch == "barras_v") "% de casos" else NULL)
+  list(title = mr_label(s),
+       subtitle = paste0("Respuesta múltiple · ", fmt_int(round(casos)), " casos con respuesta",
+                         if (!is.null(weight) && nzchar(weight)) " · ponderado" else ""),
+       table = tab, plot = p,
+       stats = paste0("Cada caso marca de media ", fmt_num(resp / casos), " opciones. El % de casos suma más de 100 % ",
+                      "porque se puede marcar más de una opción",
+                      if (attr(f, "sin_respuesta") > 0) paste0("; ", fmt_int(round(attr(f, "sin_respuesta"))), " casos no responden al conjunto") else "",
+                      "."))
+}
+
+# Conjunto (en filas) según una variable categórica (en columnas): % de casos de cada grupo.
+explore_mr_cat <- function(d, id, vc, weight = NULL, chart = NULL, counts = FALSE) {
+  s <- mr_find(d, id)
+  need_var(d, vc)
+  if (!is.factor(d[[vc]])) stop("Un conjunto de respuesta múltiple solo se puede cruzar con una variable categórica.")
+  w <- weights_of(d, weight)
+  m <- mr_incidences(d, s)
+  ok <- stats::complete.cases(m) & !is.na(d[[vc]])
+  m <- m[ok, , drop = FALSE]; g <- droplevels(d[[vc]][ok]); ww <- w[ok]
+  casos_g <- tapply(ww, g, sum)
+  n_og <- sapply(levels(g), function(l) colSums(m[g == l, , drop = FALSE] * ww[g == l]))
+  if (is.null(dim(n_og))) n_og <- matrix(n_og, nrow = ncol(m), dimnames = list(names(m), levels(g)))
+  pct <- sweep(n_og, 2, casos_g, "/")
+  tot <- colSums(m * ww) / sum(ww)
+  # prueba χ² de cada opción (marcada / no marcada) frente a los grupos
+  p_opt <- vapply(seq_len(ncol(m)), function(j) {
+    ct <- stats::xtabs(ww ~ factor(m[[j]], levels = 0:1) + g)
+    if (any(rowSums(ct) == 0)) return(NA_real_)
+    suppressWarnings(stats::chisq.test(ct, correct = FALSE)$p.value)
+  }, numeric(1))
+  marca <- ifelse(is.na(p_opt), "", ifelse(p_opt < 0.001, " ***", ifelse(p_opt < 0.01, " **", ifelse(p_opt < 0.05, " *", ""))))
+  cell <- function(pr, n) if (counts) paste0(fmt_pct(pr), " (", fmt_int(round(n)), ")") else fmt_pct(pr)
+  tabm <- matrix(cell(pct, n_og), nrow = nrow(pct), dimnames = list(paste0(rownames(pct), marca), colnames(pct)))
+  tabm <- cbind(tabm, Total = cell(tot, colSums(m * ww)))
+  tabm <- rbind(tabm, `Casos (n)` = fmt_int(round(c(casos_g, sum(ww)))))
+  tab <- cbind(stats::setNames(data.frame(rownames(tabm), check.names = FALSE), mr_label(s)),
+               as.data.frame(tabm, check.names = FALSE, stringsAsFactors = FALSE))
+  rownames(tab) <- NULL
+  pd <- as.data.frame(as.table(pct)); names(pd) <- c("serie", "grupo", "pct")
+  pd$serie <- factor(pd$serie, levels = rownames(pct))
+  ch <- pick_chart(chart, "mrcat")
+  p <- plot_catcat(pd, NULL, ch, "col", var_label(d, vc), mr_label(s)) +
+    ggplot2::labs(y = paste("% de casos dentro de", tolower(var_label(d, vc))))
+  sig <- sum(p_opt < 0.05, na.rm = TRUE)
+  list(title = paste(mr_label(s), "según", tolower(var_label(d, vc))),
+       subtitle = paste0(mr_label(s), " en filas · ", var_label(d, vc), " en columnas · % de casos de cada grupo · n = ",
+                         fmt_int(round(sum(ww))), if (!is.null(weight) && nzchar(weight)) " · ponderado" else ""),
+       table = tab, plot = p,
+       stats = paste0(sig, " de ", length(p_opt), " opciones difieren entre grupos de forma significativa ",
+                      "(χ² de cada opción; * p < 0,05, ** p < 0,01, *** p < 0,001). ",
+                      "Cada columna suma más de 100 % porque se puede marcar más de una opción."))
+}
