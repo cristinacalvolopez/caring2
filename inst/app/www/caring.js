@@ -26,14 +26,21 @@
     if (window.Shiny && Shiny.shinyapp && Shiny.shinyapp.isConnected && Shiny.shinyapp.isConnected()) sendAuth();
   });
 
+  // La cookie se limita a la ruta de la app (p. ej. /caring/) para no mezclarse con otras webs del dominio.
+  function cookiePath() {
+    var p = window.location.pathname || "/";
+    return p.substring(0, p.lastIndexOf("/") + 1) || "/";
+  }
+
   Shiny.addCustomMessageHandler("caring-set-cookie", function (m) {
-    var c = COOKIE + "=" + encodeURIComponent(m.token) + "; path=/; SameSite=Lax";
+    var c = COOKIE + "=" + encodeURIComponent(m.token) + "; path=" + cookiePath() + "; SameSite=Lax";
     if (m.days) c += "; max-age=" + Math.round(m.days * 86400);
     if (m.secure) c += "; Secure";
     setCookie(c);
   });
 
   Shiny.addCustomMessageHandler("caring-clear-cookie", function (m) {
+    setCookie(COOKIE + "=; path=" + cookiePath() + "; max-age=0; SameSite=Lax");
     setCookie(COOKIE + "=; path=/; max-age=0; SameSite=Lax");
   });
 
