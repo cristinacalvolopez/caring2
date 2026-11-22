@@ -1,0 +1,22 @@
+# Datos de usuarios y base de datos local: nunca al repositorio
+storage/
+*.sqlite
+*.sqlite-journal
+
+# R
+.Rproj.user/
+.Rhistory
+.RData
+.Rapp.history
+*.Rcheck/
+caring2_*.tar.gz
+
+# Sistema
+.DS_Store
+tests/testthat/_snaps/**/*.new.*
+
+# Diseño, planes y material de referencia: solo en local (no forman parte del programa)
+docs/
+diseno/
+referencia/
+old/

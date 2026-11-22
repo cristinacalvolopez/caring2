@@ -1,0 +1,44 @@
+Package: caring2
+Title: CARING 2: Coincidencias en Encuestas
+Version: 0.1.0
+Authors@R: person("Proyecto", "netcoin", role = c("aut", "cre"), email = "caring@example.org")
+Description: Aplicación Shiny para cargar, preparar y explorar bases de datos de
+    encuestas y convertirlas en redes de coincidencias con netCoin. Incluye
+    usuarios, proyectos, análisis exploratorio, redes e informes/diapositivas.
+License: GPL-3
+Encoding: UTF-8
+Language: es
+Depends: R (>= 4.1)
+Imports:
+    shiny (>= 1.8),
+    bslib (>= 0.6),
+    DBI,
+    RSQLite,
+    sodium,
+    jsonlite,
+    uuid,
+    digest,
+    haven,
+    readxl,
+    data.table,
+    netCoin (>= 2.1),
+    ggplot2,
+    sortable,
+    chromote,
+    pkgload,
+    reactable,
+    officer,
+    flextable,
+    base64enc,
+    webshot2,
+    htmltools,
+    tools,
+    stats,
+    utils
+Suggests:
+    testthat (>= 3.0.0),
+    shinytest2,
+    pool,
+    RPostgres,
+    openxlsx
+Config/testthat/edition: 3

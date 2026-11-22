@@ -1,0 +1,10 @@
+^docs$
+^diseno$
+^referencia$
+^old$
+^data-raw$
+^storage$
+^app\.R$
+^\.Rproj\.user$
+^.*\.Rproj$
+^README\.md$
