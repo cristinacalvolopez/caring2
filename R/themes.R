@@ -167,8 +167,7 @@ page_template <- function(template, type = "slides", title = "Título", theme = 
     els <- switch(kind,
       portada = list(
         txt(70, 170, 820, 110, title, "title", 48, TRUE),
-        txt(70, 305, 820, 50, "Subtítulo · autoría · fecha", "subtitle", 22),
-        txt(70, 470, 820, 30, "Elaborado con CARING · Universidad de Salamanca", "foot", 14)),
+        txt(70, 305, 820, 50, "Subtítulo · autoría · fecha", "subtitle", 22)),       # la marca de CARING va aparte (fija)
       dos_columnas = list(
         txt(48, ty, 864, 56, "Título de la diapositiva", "title", 30, TRUE),
         txt(48, 120, 420, 370, "Texto de la columna izquierda.", "body", 18),

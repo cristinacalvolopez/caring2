@@ -172,10 +172,30 @@
       style: { size: title ? (E.doc.type === "report" ? 20 : 32) : (E.doc.type === "report" ? 12 : 18), bold: title,
                color: title ? t.heading : t.text, align: "left" } });
   }
-  function addShape() {
-    var slot = freeSlot(240, 140);
-    addElement({ id: uid(), kind: "shape", x: slot.x, y: slot.y, w: slot.w, h: slot.h,
-                 style: { bg: E.theme.accent || "#2F7BEE", radius: Math.min(E.theme.radius || 0, 20) } });
+  // Formas: [clave, nombre]; las poligonales usan clip-path (los mismos vértices que en R)
+  var SHAPES = [["rect", "Rectángulo"], ["elipse", "Círculo o elipse"], ["triangulo", "Triángulo"], ["rombo", "Rombo"],
+                ["hexagono", "Hexágono"], ["estrella", "Estrella"], ["flecha", "Flecha"]];
+  var SHAPE_POINTS = {
+    triangulo: [0.5, 0, 1, 1, 0, 1], rombo: [0.5, 0, 1, 0.5, 0.5, 1, 0, 0.5],
+    hexagono: [0.25, 0, 0.75, 0, 1, 0.5, 0.75, 1, 0.25, 1, 0, 0.5],
+    estrella: [0.5, 0, 0.61, 0.35, 0.98, 0.35, 0.68, 0.57, 0.79, 0.91, 0.5, 0.7, 0.21, 0.91, 0.32, 0.57, 0.02, 0.35, 0.39, 0.35],
+    flecha: [0, 0.3, 0.65, 0.3, 0.65, 0, 1, 0.5, 0.65, 1, 0.65, 0.7, 0, 0.7]
+  };
+  function shapeCss(shape, radius) {
+    shape = shape || "rect";
+    if (shape === "elipse") return "border-radius:50%";
+    var p = SHAPE_POINTS[shape];
+    if (!p) return "border-radius:" + (radius || 0) + "px";
+    var pts = [];
+    for (var i = 0; i < p.length; i += 2) pts.push((p[i] * 100) + "% " + (p[i + 1] * 100) + "%");
+    return "clip-path:polygon(" + pts.join(",") + ")";
+  }
+  function addShape(shape) {
+    var cuadrada = shape && shape !== "rect" && shape !== "flecha";
+    var slot = freeSlot(cuadrada ? 160 : 240, cuadrada ? 160 : 140);
+    var st = { bg: E.theme.accent || "#2F7BEE", radius: Math.min(E.theme.radius || 0, 20) };
+    if (shape && shape !== "rect") st.shape = shape;
+    addElement({ id: uid(), kind: "shape", x: slot.x, y: slot.y, w: slot.w, h: slot.h, style: st });
   }
   function addResult(id) {
     var r = E.assets.results[id];
@@ -234,7 +254,7 @@
       n.appendChild(t);
     } else if (e.kind === "shape") {
       n.style.background = (e.style && e.style.bg) || "#2F7BEE";
-      n.style.borderRadius = ((e.style && e.style.radius) || 0) + "px";
+      n.style.cssText += ";" + shapeCss(e.style && e.style.shape, e.style && e.style.radius);
     } else if (e.kind === "image") {
       var src = E.assets.images[e.src];
       n.appendChild(src ? h("img", { src: src, alt: "", draggable: "false" }) : h("div", { "class": "ed-missing", text: "Imagen no disponible" }));
@@ -249,9 +269,13 @@
         // Gráfico interactivo (en las descargas se usa la imagen)
         var pd = h("div", { "class": "ed-plotly", role: "img", "aria-label": r.title });
         n.appendChild(pd);
-        E.plots.push({ node: pd, fig: r.fig, w: e.w - (e.style && e.style.bg ? 16 : 0), h: e.h - (e.style && e.style.bg ? 16 : 0) });
+        var pal = e.style && e.style.palette;
+        E.plots.push({ node: pd, fig: (pal && r.figs && r.figs[pal]) || r.fig, w: e.w - (e.style && e.style.bg ? 16 : 0), h: e.h - (e.style && e.style.bg ? 16 : 0) });
       }
-      else if (r.png) n.appendChild(h("img", { src: r.png, alt: r.title, draggable: "false" }));
+      else if (r.png) {
+        var pv = e.style && e.style.palette;
+        n.appendChild(h("img", { src: (pv && r.pngs && r.pngs[pv]) || r.png, alt: r.title, draggable: "false" }));
+      }
       else n.appendChild(h("div", { "class": "ed-missing", text: r.title }));
       if (interactive && r && r.interactive) n.appendChild(h("span", { "class": "ed-badge", text: "Red interactiva" }));
     }
@@ -259,11 +283,23 @@
     return n;
   }
 
+  function isLightColor(c) {
+    var m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})/i.exec(c || "#FFFFFF");
+    if (!m) return true;
+    return (0.299 * parseInt(m[1], 16) + 0.587 * parseInt(m[2], 16) + 0.114 * parseInt(m[3], 16)) / 255 > 0.6;
+  }
   function pageNode(p, interactive) {
     var s = size();
     var n = h("div", { "class": "ed-page", style: "width:" + s.w + "px;height:" + s.h + "px;background:" + (p.bg || "#FFFFFF") });
     if (interactive && E.doc.mode === "blocks") n.appendChild(gridOverlay());
     p.elements.forEach(function (e) { n.appendChild(elementNode(e, interactive)); });
+    // «Elaborado con CARING» en la primera diapositiva: no es un elemento, no se puede borrar
+    if (E.doc.type !== "report" && p === E.doc.pages[0]) {
+      var claro = isLightColor(p.bg);
+      n.appendChild(h("div", { "class": "ed-brand", style: "color:" + (claro ? "#555555" : "#FFFFFF"), title: "Marca de CARING (fija)" }, [
+        h("span", { text: "Elaborado con" }),
+        h("img", { src: "caring/img/" + (claro ? "caring-logo-azul.png" : "caring-logo-blanco.png"), alt: "CARING", draggable: "false" })]));
+    }
     return n;
   }
 
@@ -350,17 +386,47 @@
       side.appendChild(swatches(s.bg || null, function (c) { s.bg = c; commit(); render(); }, true));
     } else if (e.kind === "shape") {
       e.style = e.style || {};
+      side.appendChild(h("div", { "class": "ed-label", text: "Forma" }));
+      var fs = h("div", { "class": "ed-shapes" });
+      SHAPES.forEach(function (sh) {
+        fs.appendChild(h("button", { type: "button", "class": "ed-shape-btn" + ((e.style.shape || "rect") === sh[0] ? " on" : ""), title: sh[1], "aria-label": sh[1],
+          onclick: function () { e.style.shape = sh[0] === "rect" ? undefined : sh[0]; commit(); render(); } },
+          [h("span", { "class": "ed-shape-ico", style: shapeCss(sh[0], 0) })]));
+      });
+      side.appendChild(fs);
       side.appendChild(h("div", { "class": "ed-label", text: "Color" }));
       side.appendChild(swatches(e.style.bg || "#2F7BEE", function (c) { e.style.bg = c || "#2F7BEE"; commit(); render(); }));
+      if ((e.style.shape || "rect") === "rect") {
       var rad = h("input", { type: "range", min: "0", max: "60", value: e.style.radius || 0, "aria-label": "Redondeo" });
       rad.addEventListener("change", function () { e.style.radius = +rad.value; commit(); render(); });
       side.appendChild(h("div", { "class": "ed-row" }, [h("span", { text: "Redondeo" }), rad]));
-    } else if (e.kind === "result") {
-      if (e.style && e.style.bg) {
-        n.style.background = e.style.bg; n.style.borderRadius = (e.style.radius || 0) + "px"; n.style.padding = "8px";
       }
+    } else if (e.kind === "result") {
       var r = E.assets.results[e.ref];
       side.appendChild(h("div", { "class": "ed-label", text: r ? r.title : "Resultado" }));
+      if (r && r.kind === "grafico" && E.palettes) {
+        // Colores del gráfico
+        e.style = e.style || {};
+        var cur = e.style.palette || "netcoin";
+        side.appendChild(h("div", { "class": "ed-label", text: "Colores del gráfico" }));
+        var pl = h("div", { "class": "ed-palettes", role: "radiogroup", "aria-label": "Colores del gráfico" });
+        Object.keys(E.palettes).forEach(function (k) {
+          var P = E.palettes[k];
+          pl.appendChild(h("button", { type: "button", "class": "ed-pal" + (cur === k ? " on" : ""), role: "radio", "aria-checked": cur === k ? "true" : "false",
+            title: P.nombre, onclick: function () { e.style.palette = k === "netcoin" ? undefined : k; commit(); render(); } },
+            [h("span", { "class": "ed-pal-sw" }, P.colors.slice(0, 5).map(function (c) { return h("i", { style: "background:" + c }); })),
+             h("span", { text: P.nombre })]));
+        });
+        side.appendChild(pl);
+        side.appendChild(h("button", { type: "button", "class": "btn btn-light-c btn-sm mb-2", text: "Usar estos colores en todos los gráficos",
+          onclick: function () {
+            E.doc.pages.forEach(function (pg) { pg.elements.forEach(function (x) {
+              var rr = x.kind === "result" && E.assets.results[x.ref];
+              if (rr && rr.kind === "grafico") { x.style = x.style || {}; x.style.palette = e.style.palette; }
+            }); });
+            commit(); render();
+          } }));
+      }
       if (r && r.interactive) side.appendChild(h("p", { "class": "ed-hint", text: "En HTML la red se exporta interactiva; en PowerPoint, Word y PDF, como imagen." }));
       if (r && r.fig) side.appendChild(h("p", { "class": "ed-hint", text: "Aquí el gráfico es interactivo (pasa el ratón por encima). Al descargar el informe se incluye como imagen." }));
     }
@@ -535,6 +601,7 @@
     if (!root) { if (E && E.root) E.root.innerHTML = ""; E = null; return; }
     E = { root: root, doc: m.doc, assets: m.assets || { results: {}, images: {} }, templates: m.templates || {},
           theme: m.theme || { text: "#000000", heading: "#135DCD", accent: "#2F7BEE", resultBg: null, radius: 0 },
+          palettes: m.palettes || null,
           inputId: m.inputId, deleteResultId: m.deleteResultId, imageInput: m.imageInput,
           page: 0, sel: null, undo: [], redo: [], last: JSON.stringify(m.doc), scale: 1 };
     var tpls = E.doc.type === "report" ? TEMPLATES_REPORT : TEMPLATES_SLIDES;
@@ -552,7 +619,12 @@
       h("span", { "class": "ed-sep" }),
       h("button", { type: "button", "class": "btn btn-light-c btn-sm", text: "T  Texto", onclick: function () { addText("text"); } }),
       h("button", { type: "button", "class": "btn btn-light-c btn-sm", text: "Título", onclick: function () { addText("title"); } }),
-      h("button", { type: "button", "class": "btn btn-light-c btn-sm", text: "Forma", onclick: addShape }),
+      h("div", { "class": "dropdown d-inline-block" }, [
+        h("button", { type: "button", "class": "btn btn-light-c btn-sm dropdown-toggle", "data-bs-toggle": "dropdown", text: "Forma" }),
+        h("ul", { "class": "dropdown-menu ed-shape-menu" }, SHAPES.map(function (sh) {
+          return h("li", null, [h("a", { "class": "dropdown-item", href: "#", onclick: function (ev) { ev.preventDefault(); addShape(sh[0]); } },
+            [h("span", { "class": "ed-shape-ico", style: shapeCss(sh[0], 0) }), h("span", { text: sh[1] })])]);
+        }))]),
       h("button", { type: "button", "class": "btn btn-light-c btn-sm", text: "Imagen", onclick: function () {
         var f = document.getElementById(E.imageInput); if (f) f.click(); } }),
       h("span", { "class": "ed-sep" }),

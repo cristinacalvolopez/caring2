@@ -56,12 +56,12 @@ plot_catcat <- function(pd, ct, chart, pct, xl, fl) suppressWarnings(plot_catcat
 aes_hover <- function() ggplot2::aes(text = .data$hover)
 
 plot_cat_ <- function(pd, chart) {
-  pal <- rep(caring_palette, length.out = nrow(pd))
+  pal <- pal_colors(nrow(pd))
   pd$hover <- paste0(pd$cat, "<br><b>", fmt_pct(pd$pct), "</b>",
                      if (!is.null(pd$n)) paste0(" · n = ", fmt_int(round(pd$n))) else "")
   switch(chart,
     barras_v = ggplot2::ggplot(pd, ggplot2::aes(x = .data$cat, y = .data$pct)) +
-      ggplot2::geom_col(aes_hover(), fill = caring_blue, width = 0.7) +
+      ggplot2::geom_col(aes_hover(), fill = pal_main(), width = 0.7) +
       ggplot2::geom_text(ggplot2::aes(label = fmt_pct(.data$pct)), vjust = -0.4, size = 3.6, colour = "#333333") +
       ggplot2::scale_y_continuous(labels = function(z) fmt_pct(z, 0), expand = ggplot2::expansion(c(0, 0.12))) +
       ggplot2::scale_x_discrete(labels = function(z) wrap_labels(z, 14)) +
@@ -79,15 +79,15 @@ plot_cat_ <- function(pd, chart) {
         ggplot2::theme(legend.position = "right", legend.title = ggplot2::element_blank())
     },
     puntos = ggplot2::ggplot(pd, ggplot2::aes(x = .data$pct, y = forcats_rev(.data$cat))) +
-      ggplot2::geom_segment(ggplot2::aes(x = 0, xend = .data$pct, yend = forcats_rev(.data$cat)), colour = "#CBDEFB", linewidth = 1.6) +
-      ggplot2::geom_point(aes_hover(), colour = caring_blue, size = 5) +
+      ggplot2::geom_segment(ggplot2::aes(x = 0, xend = .data$pct, yend = forcats_rev(.data$cat)), colour = pal_light(), linewidth = 1.6) +
+      ggplot2::geom_point(aes_hover(), colour = pal_main(), size = 5) +
       ggplot2::geom_text(ggplot2::aes(label = fmt_pct(.data$pct)), hjust = -0.4, size = 3.6, colour = "#333333") +
       ggplot2::scale_x_continuous(labels = function(z) fmt_pct(z, 0), expand = ggplot2::expansion(c(0, 0.15)), limits = c(0, NA)) +
       ggplot2::scale_y_discrete(labels = function(z) wrap_labels(z, 28)) +
       ggplot2::labs(x = "% de respuestas válidas", y = NULL) + theme_caring() + grid_x(),
     # barras horizontales
     ggplot2::ggplot(pd, ggplot2::aes(x = .data$pct, y = forcats_rev(.data$cat))) +
-      ggplot2::geom_col(aes_hover(), fill = caring_blue, width = 0.7) +
+      ggplot2::geom_col(aes_hover(), fill = pal_main(), width = 0.7) +
       ggplot2::geom_text(ggplot2::aes(label = fmt_pct(.data$pct)), hjust = -0.1, size = 3.6, colour = "#333333") +
       ggplot2::scale_x_continuous(labels = function(z) fmt_pct(z, 0), expand = ggplot2::expansion(c(0, 0.15))) +
       ggplot2::scale_y_discrete(labels = function(z) wrap_labels(z, 28)) +
@@ -101,37 +101,37 @@ forcats_rev <- function(f) factor(f, levels = rev(levels(f)))
 plot_num <- function(pd, chart, m, lab) {
   bins <- min(30, max(10, ceiling(log2(nrow(pd)) + 1) * 2))
   media <- list(
-    ggplot2::geom_vline(xintercept = m, colour = "#135DCD", linetype = "dashed"),
+    ggplot2::geom_vline(xintercept = m, colour = pal_dark(), linetype = "dashed"),
     ggplot2::annotate("text", x = m, y = Inf, label = paste("media", fmt_num(m, 1)),
-                      vjust = 1.5, hjust = -0.05, colour = "#135DCD", size = 3.6))
+                      vjust = 1.5, hjust = -0.05, colour = pal_dark(), size = 3.6))
   base <- ggplot2::ggplot(pd, ggplot2::aes(x = .data$x, weight = .data$w))
   switch(chart,
     hist_dens = base +
-      ggplot2::geom_histogram(ggplot2::aes(y = ggplot2::after_stat(density)), bins = bins, fill = "#CBDEFB", colour = "white") +
-      ggplot2::geom_density(colour = caring_blue, linewidth = 1.1) + media +
+      ggplot2::geom_histogram(ggplot2::aes(y = ggplot2::after_stat(density)), bins = bins, fill = pal_light(), colour = "white") +
+      ggplot2::geom_density(colour = pal_main(), linewidth = 1.1) + media +
       ggplot2::labs(x = lab, y = "Densidad") + theme_caring() + grid_y(),
     densidad = base +
-      ggplot2::geom_density(fill = caring_blue, alpha = 0.35, colour = caring_blue, linewidth = 1) + media +
+      ggplot2::geom_density(fill = pal_main(), alpha = 0.35, colour = pal_main(), linewidth = 1) + media +
       ggplot2::labs(x = lab, y = "Densidad") + theme_caring() + grid_y(),
     caja = ggplot2::ggplot(pd, ggplot2::aes(x = .data$x, y = "", weight = .data$w)) +
-      ggplot2::geom_boxplot(fill = "#CBDEFB", colour = "#135DCD", width = 0.4, outlier.colour = "#999999") +
+      ggplot2::geom_boxplot(fill = pal_light(), colour = pal_dark(), width = 0.4, outlier.colour = "#999999") +
       ggplot2::stat_summary(ggplot2::aes(group = 1), fun = mean, geom = "point", shape = 23, size = 3.5,
                             fill = "white", colour = "#000000", orientation = "y") +
       ggplot2::labs(x = lab, y = NULL, caption = "El rombo es la media") + theme_caring() + grid_x(),
     violin = ggplot2::ggplot(pd, ggplot2::aes(x = .data$x, y = "")) +
-      ggplot2::geom_violin(fill = "#CBDEFB", colour = "#135DCD", orientation = "y") +
+      ggplot2::geom_violin(fill = pal_light(), colour = pal_dark(), orientation = "y") +
       ggplot2::geom_boxplot(width = 0.12, fill = "white", outlier.shape = NA) +
       ggplot2::labs(x = lab, y = NULL, caption = if (length(unique(pd$w)) > 1) "La forma del violín no tiene en cuenta la ponderación") +
       theme_caring() + grid_x(),
     # histograma
-    base + ggplot2::geom_histogram(bins = bins, fill = caring_blue, colour = "white") + media +
+    base + ggplot2::geom_histogram(bins = bins, fill = pal_main(), colour = "white") + media +
       ggplot2::labs(x = lab, y = "Casos") + theme_caring() + grid_y()
   )
 }
 
 # Dos categóricas: pd con grupo, serie, pct; ct = tabla de frecuencias (filas a, columnas b)
 plot_catcat_ <- function(pd, ct, chart, pct, xl, fl) {
-  pal <- rep(caring_palette, length.out = nlevels(pd$serie))
+  pal <- pal_colors(nlevels(pd$serie))
   pd$hover <- paste0(pd$serie, " · ", pd$grupo, if (!is.null(pd$capa)) paste0(" · ", pd$capa) else "",
                      "<br><b>", fmt_pct(pd$pct), "</b>")
   ylab <- switch(pct, col = paste("% dentro de", tolower(xl)), row = paste("% dentro de", tolower(xl)), "% del total")
@@ -142,7 +142,7 @@ plot_catcat_ <- function(pd, ct, chart, pct, xl, fl) {
         ggplot2::geom_tile(aes_hover(), colour = "white", linewidth = 1) +
         ggplot2::geom_text(ggplot2::aes(label = fmt_pct(.data$pct, 0), colour = .data$pct > mx * 0.55), size = 3.8, show.legend = FALSE) +
         ggplot2::scale_colour_manual(values = c(`TRUE` = "#FFFFFF", `FALSE` = "#1A1A1A")) +
-        ggplot2::scale_fill_gradient(low = "#EAF2FE", high = "#135DCD", labels = function(z) fmt_pct(z, 0), name = ylab) +
+        ggplot2::scale_fill_gradient(low = pal_low(), high = pal_dark(), labels = function(z) fmt_pct(z, 0), name = ylab) +
         ggplot2::scale_x_discrete(labels = function(z) wrap_labels(z, 14)) +
         ggplot2::scale_y_discrete(labels = function(z) wrap_labels(z, 22)) +
         ggplot2::labs(x = xl, y = fl) + theme_caring() +
@@ -203,7 +203,7 @@ plot_catcat_ <- function(pd, ct, chart, pct, xl, fl) {
 
 # Numérica según categórica: pd con x (numérica), g (grupo), w
 plot_numcat <- function(pd, chart, xlab_g, ylab_n) {
-  pal <- rep(caring_palette, length.out = nlevels(pd$g))
+  pal <- pal_colors(nlevels(pd$g))
   base <- ggplot2::ggplot(pd, ggplot2::aes(x = .data$g, y = .data$x, fill = .data$g))
   ejes <- list(ggplot2::scale_fill_manual(values = pal), ggplot2::scale_colour_manual(values = pal),
                ggplot2::scale_x_discrete(labels = function(z) wrap_labels(z, 14)),
@@ -243,15 +243,15 @@ plot_numcat <- function(pd, chart, xlab_g, ylab_n) {
 # Dos numéricas: pd con x, y
 plot_numnum <- function(pd, chart, xl, yl) {
   if (nrow(pd) > 3000 && chart != "densidad2d") pd <- pd[sample(nrow(pd), 3000), ]
-  puntos <- ggplot2::geom_point(colour = caring_blue, alpha = 0.4, size = 1.8)
+  puntos <- ggplot2::geom_point(colour = pal_main(), alpha = 0.4, size = 1.8)
   fin <- list(ggplot2::labs(x = xl, y = yl), theme_caring(),
               ggplot2::theme(panel.grid.major = ggplot2::element_line(colour = "#E3E3E3")))
   switch(chart,
     curva = ggplot2::ggplot(pd, ggplot2::aes(x = .data$x, y = .data$y)) + puntos +
-      ggplot2::geom_smooth(method = "loess", formula = y ~ x, colour = "#FF7F0E", fill = "#FFE3C7", se = TRUE) + fin,
+      ggplot2::geom_smooth(method = "loess", formula = y ~ x, colour = pal_colors()[2], fill = pal_light(), se = TRUE) + fin,
     densidad2d = ggplot2::ggplot(pd, ggplot2::aes(x = .data$x, y = .data$y)) +
       ggplot2::geom_bin2d(bins = 30) +
-      ggplot2::scale_fill_gradient(low = "#EAF2FE", high = "#135DCD", name = "Casos") + fin +
+      ggplot2::scale_fill_gradient(low = pal_low(), high = pal_dark(), name = "Casos") + fin +
       ggplot2::theme(legend.position = "right"),
     tramos = {
       br <- unique(stats::quantile(pd$x, probs = seq(0, 1, 0.1), na.rm = TRUE))
@@ -262,12 +262,12 @@ plot_numnum <- function(pd, chart, xl, yl) {
         data.frame(x = stats::median(z$x), m = mean(z$y), lo = mean(z$y) - 1.96 * se, hi = mean(z$y) + 1.96 * se)
       }))
       ggplot2::ggplot(s, ggplot2::aes(x = .data$x, y = .data$m)) +
-        ggplot2::geom_line(colour = "#135DCD", linewidth = 1) +
-        ggplot2::geom_errorbar(ggplot2::aes(ymin = .data$lo, ymax = .data$hi), width = 0, colour = "#2F7BEE") +
-        ggplot2::geom_point(colour = caring_blue, size = 3.5) + fin +
+        ggplot2::geom_line(colour = pal_dark(), linewidth = 1) +
+        ggplot2::geom_errorbar(ggplot2::aes(ymin = .data$lo, ymax = .data$hi), width = 0, colour = pal_main()) +
+        ggplot2::geom_point(colour = pal_main(), size = 3.5) + fin +
         ggplot2::labs(y = paste("Media de", tolower(yl)), caption = "Puntos: media en cada décimo de la variable horizontal (IC 95 %)")
     },
     ggplot2::ggplot(pd, ggplot2::aes(x = .data$x, y = .data$y)) + puntos +
-      ggplot2::geom_smooth(method = "lm", formula = y ~ x, colour = "#135DCD", se = TRUE, fill = "#CBDEFB") + fin
+      ggplot2::geom_smooth(method = "lm", formula = y ~ x, colour = pal_dark(), se = TRUE, fill = pal_light()) + fin
   )
 }

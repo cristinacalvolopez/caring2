@@ -6,6 +6,42 @@ caring_blue <- "#2F7BEE"
 caring_palette <- c("#1F77B4", "#FF7F0E", "#2CA02C", "#D62728", "#9467BD",
                     "#8C564B", "#E377C2", "#7F7F7F", "#BCBD22", "#17BECF")
 
+# Paletas de los gráficos ------------------------------------------------------------------------
+# main: color de los gráficos de una sola serie; light/dark: tonos de apoyo; low: inicio de
+# los degradados; colors: series. La activa se elige con with_palette() (por defecto, netCoin).
+chart_palettes <- list(
+  netcoin = list(nombre = "netCoin (por defecto)", main = "#2F7BEE", light = "#CBDEFB", dark = "#135DCD", low = "#EAF2FE",
+                 colors = caring_palette),
+  azules = list(nombre = "Azules", main = "#1F5FC4", light = "#C9DAF5", dark = "#0B3D91", low = "#EEF4FE",
+                colors = c("#0B3D91", "#1F5FC4", "#3D85E0", "#73A8EE", "#A9C8F5", "#5B6C8F", "#26457A", "#8FB4E8")),
+  calidos = list(nombre = "Cálidos", main = "#E4572E", light = "#F9D3C5", dark = "#A3361A", low = "#FDF0EA",
+                 colors = c("#E4572E", "#F3A712", "#A3361A", "#F7C873", "#C2185B", "#FF8A65", "#8D4004", "#FFD54F")),
+  verdes = list(nombre = "Verdes", main = "#2E8B57", light = "#CBE8D6", dark = "#1B5E3A", low = "#EEF7F1",
+                colors = c("#1B5E3A", "#2E8B57", "#66BB6A", "#A5D6A7", "#00897B", "#8BC34A", "#33691E", "#4DB6AC")),
+  pastel = list(nombre = "Pastel", main = "#7BA7D9", light = "#DCE8F6", dark = "#4F7CB0", low = "#F3F7FC",
+                colors = c("#7BA7D9", "#F4A9A8", "#9ED8B4", "#F9D58B", "#C3A6E0", "#8FD3DA", "#F7B98B", "#C9C9C9")),
+  grises = list(nombre = "Escala de grises", main = "#555555", light = "#D9D9D9", dark = "#222222", low = "#F2F2F2",
+                colors = c("#222222", "#555555", "#888888", "#AAAAAA", "#CCCCCC", "#3D3D3D", "#707070", "#B5B5B5")),
+  vivos = list(nombre = "Vivos", main = "#7B2FF7", light = "#E2D1FD", dark = "#4B0FB0", low = "#F5EEFE",
+               colors = c("#7B2FF7", "#F72585", "#4CC9F0", "#FFB703", "#06D6A0", "#FB5607", "#3A0CA3", "#8338EC"))
+)
+
+active_palette <- function() {
+  k <- getOption("caring.palette", "netcoin")
+  chart_palettes[[if (k %in% names(chart_palettes)) k else "netcoin"]]
+}
+pal_main <- function() active_palette()$main
+pal_light <- function() active_palette()$light
+pal_dark <- function() active_palette()$dark
+pal_low <- function() active_palette()$low
+pal_colors <- function(n = NULL) { x <- active_palette()$colors; if (is.null(n)) x else rep(x, length.out = n) }
+
+with_palette <- function(pal, expr) {
+  old <- options(caring.palette = pal %||% "netcoin")
+  on.exit(options(old))
+  force(expr)
+}
+
 theme_caring <- function(base_size = 13) {
   ggplot2::theme_minimal(base_size = base_size, base_family = "sans") +
     ggplot2::theme(

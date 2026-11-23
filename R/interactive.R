@@ -9,7 +9,7 @@ plotly_caring <- function(w, filename = "grafico") {
   w <- plotly::layout(w,
     font = list(family = caring_font, size = 13, color = "#333333"),
     paper_bgcolor = "#FFFFFF", plot_bgcolor = "#FFFFFF",
-    hoverlabel = list(bgcolor = "#FFFFFF", bordercolor = caring_blue,
+    hoverlabel = list(bgcolor = "#FFFFFF", bordercolor = pal_main(),
                       font = list(family = caring_font, size = 13, color = "#1A1A1A")),
     margin = list(t = 40, r = 20, b = 60, l = 60))
   # ejes con texto algo más pequeño para que no se monten las categorías
@@ -29,7 +29,7 @@ to_plotly <- function(r) {
     pd <- r$pd
     w <- plotly::plot_ly(pd, labels = ~cat, values = ~pct, type = "pie", sort = FALSE, direction = "clockwise",
                          hole = if (r$chart == "anillo") 0.5 else 0,
-                         marker = list(colors = rep(caring_palette, length.out = nrow(pd)), line = list(color = "#FFFFFF", width = 2)),
+                         marker = list(colors = pal_colors(nrow(pd)), line = list(color = "#FFFFFF", width = 2)),
                          text = fmt_pct(pd$pct / sum(pd$pct), 0), customdata = fmt_pct(pd$pct / sum(pd$pct)),
                          textinfo = "text", texttemplate = "%{text}",
                          hovertemplate = "%{label}<br><b>%{customdata}</b><extra></extra>")
@@ -46,7 +46,7 @@ to_plotly <- function(r) {
     eje_cat <- list(title = "", categoryorder = "array", categoryarray = if (h) rev(levels(pd$cat)) else levels(pd$cat), automargin = TRUE)
     w <- plotly::plot_ly(pd, type = "bar", orientation = if (h) "h" else "v",
                          x = if (h) ~pct else ~cat, y = if (h) ~cat else ~pct,
-                         marker = list(color = caring_blue), text = fmt_pct(pd$pct), textposition = "outside",
+                         marker = list(color = pal_main()), text = fmt_pct(pd$pct), textposition = "outside",
                          cliponaxis = FALSE, textfont = list(size = 12, color = "#333333"),
                          hovertext = hover, hoverinfo = "text")
     w <- plotly::layout(w, xaxis = if (h) eje_pct else eje_cat, yaxis = if (h) eje_cat else eje_pct, bargap = 0.3)
@@ -192,7 +192,49 @@ refresh_results <- function(dir, d, hash, progress = NULL) {
     if (ok) n <- n + 1
     full$data_hash <- hash
     if (identical(full$kind, "grafico") && is.null(full$object$fig)) full$object$fig <- ""
+    # las versiones de otros colores se rehacen después con los datos nuevos
+    if (ok) { full$object$figs <- NULL; unlink(Sys.glob(file.path(rdir, paste0(r$id, "__*.png")))) }
     saveRDS(full, file.path(rdir, paste0(r$id, ".rds")))
   }
   invisible(n)
+}
+
+# Colores de los gráficos en informes y presentaciones -------------------------------------------
+# Cada gráfico de un informe puede llevar otra paleta (e$style$palette). Se guarda una versión
+# por paleta: imagen resultados/<id>__<paleta>.png y figura interactiva en object$figs.
+palette_png <- function(dir, id, pal = NULL) {
+  if (!is.null(pal) && !identical(pal, "netcoin") && grepl("^[a-z]+$", pal)) {
+    f <- file.path(dir, "resultados", paste0(id, "__", pal, ".png"))
+    if (file.exists(f)) return(f)
+  }
+  file.path(dir, "resultados", paste0(id, ".png"))
+}
+
+palette_variant <- function(dir, id, pal, d) {
+  if (is.null(pal) || identical(pal, "netcoin") || !pal %in% names(chart_palettes)) return(FALSE)
+  full <- load_result(dir, id)
+  if (is.null(full) || !identical(full$kind, "grafico") || is.null(full$object$spec)) return(FALSE)
+  png <- file.path(dir, "resultados", paste0(id, "__", pal, ".png"))
+  if (file.exists(png) && !is.null(full$object$figs[[pal]])) return(FALSE)
+  ok <- with_palette(pal, tryCatch({
+    x <- explore_from_spec(d, full$object$spec)
+    save_plot_png(x$plot, png)
+    full$object$figs[[pal]] <- tryCatch(plotly_figure_json(to_plotly(x)), error = function(e) "")
+    TRUE
+  }, error = function(e) FALSE))
+  if (ok) saveRDS(full, file.path(dir, "resultados", paste0(id, ".rds")))
+  ok
+}
+
+# Crea las versiones de color que usan los documentos del proyecto. Devuelve cuántas ha hecho.
+ensure_palette_variants <- function(dir, d) {
+  n <- 0
+  for (id in list_documents(dir)$id) {
+    doc <- tryCatch(load_document(dir, id), error = function(e) NULL)
+    for (p in doc$pages) for (e in p$elements) {
+      pal <- e$style$palette
+      if (identical(e$kind, "result") && !is.null(pal) && isTRUE(palette_variant(dir, e$ref %||% "", pal, d))) n <- n + 1
+    }
+  }
+  n
 }

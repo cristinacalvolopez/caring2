@@ -98,6 +98,9 @@ mod_informes_server <- function(id, ctx) {
 
     mount <- function() {
       refresh()
+      if (isTRUE(tryCatch(ensure_palette_variants(proj$dir, isolate(ctx$data())), error = function(e) 0) > 0)) {
+        proj$results_version <- proj$results_version + 1
+      }
       id <- input$doc
       if (is.null(id) || !nzchar(id)) { session$sendCustomMessage("caring-editor-load", list(el = "__none__")); return() }
       doc <- tryCatch(load_document(proj$dir, id), error = function(e) NULL)
@@ -107,7 +110,8 @@ mod_informes_server <- function(id, ctx) {
       session$sendCustomMessage("caring-editor-load", list(
         el = ns("editor"), inputId = ns("doc_json"), deleteResultId = ns("del_result"),
         imageInput = ns("img_upload"), doc = doc, assets = assets(),
-        templates = templates_for(doc$type, th), theme = theme_for_editor(th, doc$type)))
+        templates = templates_for(doc$type, th), theme = theme_for_editor(th, doc$type),
+        palettes = lapply(chart_palettes, function(p) list(nombre = p$nombre, colors = p$colors))))
     }
 
     # Se monta el editor al entrar en el paso Informes o al cambiar de documento.
@@ -136,6 +140,9 @@ mod_informes_server <- function(id, ctx) {
         save_document(proj$dir, doc)
         current(doc)
       }
+      # si se ha elegido otra paleta para algún gráfico, se crea esa versión y se envía al editor
+      nuevas <- tryCatch(ensure_palette_variants(proj$dir, isolate(ctx$data())), error = function(e) 0)
+      if (nuevas > 0) proj$results_version <- proj$results_version + 1
       touch_project(ctx$con, proj$id)
       proj$saved <- Sys.time()
     })
