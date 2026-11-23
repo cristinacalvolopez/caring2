@@ -238,6 +238,7 @@ send_mail <- function(to, subject, body) {
   invisible(TRUE)
 }
 
+
 list_users <- function(con) {
   db_get(con, "
     SELECT u.id, u.nombre, u.email, u.rol, u.estado, u.cuota_mb, u.creado, u.ultimo_acceso,
