@@ -38,6 +38,7 @@ Imports:
     zip,
     plotly (>= 4.11.0),
     htmlwidgets,
+    lavaan,
     ggplot2,
     sortable,
     chromote,

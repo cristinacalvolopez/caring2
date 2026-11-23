@@ -15,7 +15,7 @@ servidor <- "--servidor" %in% commandArgs(trailingOnly = TRUE)
 paquetes <- c(
   "shiny", "bslib", "DBI", "RSQLite", "sodium", "jsonlite", "uuid", "digest",
   "haven", "readxl", "data.table", "netCoin", "ggplot2", "sortable", "reactable",
-  "officer", "flextable", "survey", "magick", "openxlsx", "zip", "plotly", "htmlwidgets", "base64enc", "webshot2", "chromote", "htmltools", "pkgload", "curl"
+  "officer", "flextable", "survey", "magick", "openxlsx", "zip", "plotly", "htmlwidgets", "lavaan", "base64enc", "webshot2", "chromote", "htmltools", "pkgload", "curl"
 )
 if (!servidor) {
   # solo para las pruebas automáticas

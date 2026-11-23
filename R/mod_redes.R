@@ -71,7 +71,41 @@ mod_redes_server <- function(id, ctx) {
                        selected = intersect(prev, choices),
                        options = list(plugins = list("remove_button"), placeholder = "Elige variables…")),
         p(class = "c-hint", style = "margin-top:-8px", help))
+      todas <- labelled_choices(d, names(d))
+      tiempos <- labelled_choices(d, names(d)[vapply(d, function(x) is.numeric(x) || inherits(x, c("Date", "POSIXct")), logical(1))])
+      sel_keep <- function(id, choices, default = NULL) { v <- isolate(input[[id]]); if (isTRUE(v %in% choices)) v else default }
       switch(t,
+        evolucion = tagList(
+          p(class = "c-hint", "Cada caso es un periodo: por ejemplo, personas (nacimiento y muerte), cargos, legislaturas o contratos."),
+          selectInput(ns("t_name"), "Nombre de cada caso", todas, selected = sel_keep("t_name", todas, todas[1])),
+          selectInput(ns("t_start"), "Inicio (año o fecha)", tiempos, selected = sel_keep("t_start", tiempos, tiempos[1])),
+          selectInput(ns("t_end"), "Fin (año o fecha)", tiempos, selected = sel_keep("t_end", tiempos, tiempos[min(2, length(tiempos))])),
+          p(class = "c-hint", style = "margin-top:-8px", "Si falta el fin, el periodo llega hasta el último año de los datos."),
+          selectInput(ns("t_group"), "Color según (opcional)", c("Ninguno" = "", cats, txt), selected = sel_keep("t_group", c(cats, txt), "")),
+          selectInput(ns("t_info"), "Texto al pulsar un caso (opcional)", c("Ninguno" = "", todas), selected = sel_keep("t_info", todas, ""))),
+        trayectorias = tagList(
+          textAreaInput(ns("model"), "Modelo", rows = 6, value = isolate(input$model) %||% "",
+                        placeholder = "satisfaccion ~ edad + ingresos\nconfianza =~ p1 + p2 + p3"),
+          div(class = "c-hint", style = "margin-top:-8px; margin-bottom:10px",
+              tags$code("y ~ x1 + x2"), " regresión · ", tags$code("lat =~ a + b + c"), " variable latente · ",
+              tags$code("a ~~ b"), " correlación. Usa los nombres de las variables."),
+          tags$details(class = "c-mr-sug mb-3", open = if (!nzchar(isolate(input$model) %||% "")) NA,
+            tags$summary(tags$strong("Construir el modelo paso a paso")),
+            div(class = "mt-2",
+              tags$strong(class = "small-2", "Regresión"),
+              selectInput(ns("sb_dep"), "Variable explicada", c(nums, cats)),
+              selectizeInput(ns("sb_indep"), "Variables explicativas", c(nums, cats), multiple = TRUE),
+              actionButton(ns("sb_add_reg"), "Añadir regresión", class = "btn-light-c btn-sm mb-3"),
+              tags$strong(class = "small-2", "Variable latente"),
+              textInput(ns("sb_lat"), "Nombre", placeholder = "confianza"),
+              selectizeInput(ns("sb_ind"), "Indicadores (tres o más)", c(nums, cats), multiple = TRUE),
+              actionButton(ns("sb_add_lat"), "Añadir variable latente", class = "btn-light-c btn-sm mb-3"),
+              tags$strong(class = "small-2", "Correlación"),
+              div(class = "row g-1",
+                div(class = "col-6", selectInput(ns("sb_c1"), NULL, c(nums, cats))),
+                div(class = "col-6", selectInput(ns("sb_c2"), NULL, c(nums, cats)))),
+              actionButton(ns("sb_add_cor"), "Añadir correlación", class = "btn-light-c btn-sm"))),
+          p(class = "c-hint", "Las categóricas entran con sus códigos (1, 2, 3…): conviene que sean ordinales o dicotómicas.")),
         coincidencias = multi(cats, "Variables", "Categóricas. Cada categoría será un nodo. Las numéricas se pueden agrupar en tramos en Datos."),
         loglineal = multi(cats, "Variables", "Categóricas. Mejor pocas variables (3–6)."),
         correlaciones = multi(nums, "Variables", "Numéricas. Cada variable será un nodo."),
@@ -99,6 +133,28 @@ mod_redes_server <- function(id, ctx) {
               "Las categorías de estas variables aparecen como nodos de otro color, para ver qué opciones marcan más unos grupos que otros."))
         }
       )
+    })
+
+    # Constructor del modelo de ecuaciones estructurales: añade líneas al texto del modelo
+    add_model_line <- function(line) {
+      cur <- trimws(input$model %||% "")
+      updateTextAreaInput(session, "model", value = if (nzchar(cur)) paste0(cur, "\n", line) else line)
+    }
+    observeEvent(input$sb_add_reg, {
+      ind <- setdiff(input$sb_indep, input$sb_dep)
+      if (!length(ind)) return(showNotification("Elige al menos una variable explicativa distinta de la explicada.", type = "error"))
+      add_model_line(paste(input$sb_dep, "~", paste(ind, collapse = " + ")))
+    })
+    observeEvent(input$sb_add_lat, {
+      nm <- trimws(input$sb_lat %||% "")
+      if (!grepl("^[A-Za-z][A-Za-z0-9_.]*$", nm)) return(showNotification("El nombre de la variable latente debe empezar por una letra y no llevar espacios.", type = "error"))
+      if (nm %in% names(data())) return(showNotification("Ese nombre ya es el de una variable de los datos: elige otro.", type = "error"))
+      if (length(input$sb_ind) < 2) return(showNotification("Elige al menos dos indicadores (mejor tres o más).", type = "error"))
+      add_model_line(paste(nm, "=~", paste(input$sb_ind, collapse = " + ")))
+    })
+    observeEvent(input$sb_add_cor, {
+      if (identical(input$sb_c1, input$sb_c2)) return(showNotification("Elige dos variables distintas.", type = "error"))
+      add_model_line(paste(input$sb_c1, "~~", input$sb_c2))
     })
 
     # Opciones de cada tipo de análisis (net_options() dice cuáles corresponden a cada uno)
@@ -158,6 +214,9 @@ mod_redes_server <- function(id, ctx) {
            min_freq = val("min_freq", input$min_freq), degree = val("degree", input$degree),
            nclusters = val("nclusters", input$nclusters), clusters = val("clusters", input$clusters),
            labels = val("labels", input$labels),
+           name = if (t == "evolucion") input$t_name, start = if (t == "evolucion") input$t_start,
+           end = if (t == "evolucion") input$t_end, group = if (t == "evolucion") input$t_group,
+           info = if (t == "evolucion") input$t_info, model = if (t == "trayectorias") input$model,
            order = if ("order" %in% o) as.integer(input$order %||% 2)))
     })
 
@@ -191,6 +250,11 @@ mod_redes_server <- function(id, ctx) {
       sm <- net_summary(current$net)
       if (current$spec$type == "factorial") {
         return(paste0("Mapa factorial · ", fmt_int(sm$nodes), " puntos"))
+      }
+      if (current$spec$type == "evolucion") return(paste0("Evolución temporal · ", fmt_int(sm$nodes), " periodos"))
+      if (current$spec$type == "trayectorias") {
+        return(paste0("Ecuaciones estructurales · ", sm$nodes, " variables · ", sm$links, " relaciones · ",
+                      attr(current$net, "fit_text") %||% ""))
       }
       paste0(net_types[[current$spec$type]]$titulo,
              if (!is.na(sm$nodes)) paste0(" · ", sm$nodes, " nodos"),
@@ -257,6 +321,8 @@ mod_redes_server <- function(id, ctx) {
 
 default_net_title <- function(d, s) {
   base <- net_types[[s$type]]$titulo
+  if (s$type == "evolucion") return(paste(base, "·", if (length(s$name) && s$name %in% names(d)) var_label(d, s$name) else ""))
+  if (s$type == "trayectorias") return(base)
   if (s$type == "regresion" && length(s$dep) && nzchar(s$dep)) return(paste(base, "·", var_label(d, s$dep)))
   vars <- s$vars
   nombre <- function(v) if (startsWith(v, "mr:")) mr_label(mrsets(d)[[sub("^mr:", "", v)]] %||% list(name = v)) else var_label(d, v)
@@ -269,6 +335,23 @@ default_net_title <- function(d, s) {
 }
 
 net_code <- function(s) {
+  q <- function(x) paste0('"', x, '"')
+  if (s$type == "evolucion") {
+    return(paste(c("# Evolución temporal generada con CARING 2 (netCoin::timeCoin)", "library(netCoin)",
+      "# 'datos' es el resultado del script de preparación",
+      paste0("periodos <- datos[!is.na(datos[[", q(s$start), "]]), ]"),
+      paste0("timeCoin(periodos, name = ", q(s$name), ", start = ", q(s$start), ", end = ", q(s$end),
+             if (nzchar(s$group %||% "")) paste0(", group = ", q(s$group)), ", language = \"es\")")), collapse = "\n"))
+  }
+  if (s$type == "trayectorias") {
+    return(paste(c("# Modelo de ecuaciones estructurales generado con CARING 2 (lavaan + netCoin)",
+      "library(lavaan); library(netCoin)", "# 'datos' es el resultado del script de preparación",
+      "modelo <- '", s$model %||% "", "'",
+      paste0("ajuste <- sem(modelo, data = datos, missing = \"ml\"",
+             if (nzchar(s$weight %||% "")) paste0(", sampling.weights = ", q(s$weight), ", estimator = \"MLR\""), ")"),
+      "summary(ajuste, standardized = TRUE, fit.measures = TRUE)",
+      "pathCoin(ajuste, language = \"es\")  # CARING dibuja además las variables latentes y sus indicadores"), collapse = "\n"))
+  }
   fun <- c(coincidencias = "surCoin", correlaciones = "netCorr", factorial = "surScat",
            loglineal = "logCoin", regresion = "glmCoin", multiple = "allNet")[[s$type]]
   args <- compact(list(
