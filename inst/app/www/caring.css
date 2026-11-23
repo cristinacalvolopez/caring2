@@ -327,3 +327,8 @@ pre.c-code { background: #F5F5F5; border: 1px solid var(--c-border-2); border-ra
 .c-problem-txt .small-2 { color: #444; }
 @media (max-width: 640px) { .c-problem { grid-template-columns: 34px 1fr; } .c-problem-act { grid-column: 2; } }
 .dropdown-menu .dropdown-header { color: #555; font-size: 12px; }
+
+/* Interruptor «Interactivo» en Explorar */
+.c-switch { margin: 0 6px 0 0; display: flex; align-items: center; gap: 6px; min-height: 0; }
+.c-switch .form-check-input { width: 2.4em; height: 1.3em; cursor: pointer; margin-top: 0; }
+.c-switch .form-check-label { color: #1A1A1A; font-weight: 500; cursor: pointer; }

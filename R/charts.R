@@ -16,6 +16,8 @@ chart_choices <- function(kind) {
                "Densidad 2D (cuadrícula)" = "densidad2d", "Medias por tramos" = "tramos"),
     mr = c("Barras horizontales" = "barras_h", "Barras verticales" = "barras_v", "Puntos (lollipop)" = "puntos"),
     mrcat = c("Barras agrupadas" = "agrupadas", "Mapa de calor" = "calor", "Burbujas" = "burbujas"),
+    catcat3 = c("Barras agrupadas" = "agrupadas", "Barras apiladas" = "apiladas", "Mapa de calor" = "calor", "Burbujas" = "burbujas"),
+    numcat3 = c("Caja y bigotes" = "caja", "Violín" = "violin", "Puntos" = "puntos"),
     character())
 }
 
@@ -47,11 +49,19 @@ grid_x <- function() ggplot2::theme(panel.grid.major.x = ggplot2::element_line(c
                                     panel.grid.major.y = ggplot2::element_blank())
 
 # Una variable categórica: pd con columnas cat (factor en el orden original), pct, n
-plot_cat <- function(pd, chart) {
+# El texto de «hover» (aes text) solo lo usan los gráficos interactivos; ggplot avisa de que
+# no conoce esa estética, por eso las funciones públicas silencian ese aviso.
+plot_cat <- function(pd, chart) suppressWarnings(plot_cat_(pd, chart))
+plot_catcat <- function(pd, ct, chart, pct, xl, fl) suppressWarnings(plot_catcat_(pd, ct, chart, pct, xl, fl))
+aes_hover <- function() ggplot2::aes(text = .data$hover)
+
+plot_cat_ <- function(pd, chart) {
   pal <- rep(caring_palette, length.out = nrow(pd))
+  pd$hover <- paste0(pd$cat, "<br><b>", fmt_pct(pd$pct), "</b>",
+                     if (!is.null(pd$n)) paste0(" · n = ", fmt_int(round(pd$n))) else "")
   switch(chart,
     barras_v = ggplot2::ggplot(pd, ggplot2::aes(x = .data$cat, y = .data$pct)) +
-      ggplot2::geom_col(fill = caring_blue, width = 0.7) +
+      ggplot2::geom_col(aes_hover(), fill = caring_blue, width = 0.7) +
       ggplot2::geom_text(ggplot2::aes(label = fmt_pct(.data$pct)), vjust = -0.4, size = 3.6, colour = "#333333") +
       ggplot2::scale_y_continuous(labels = function(z) fmt_pct(z, 0), expand = ggplot2::expansion(c(0, 0.12))) +
       ggplot2::scale_x_discrete(labels = function(z) wrap_labels(z, 14)) +
@@ -70,14 +80,14 @@ plot_cat <- function(pd, chart) {
     },
     puntos = ggplot2::ggplot(pd, ggplot2::aes(x = .data$pct, y = forcats_rev(.data$cat))) +
       ggplot2::geom_segment(ggplot2::aes(x = 0, xend = .data$pct, yend = forcats_rev(.data$cat)), colour = "#CBDEFB", linewidth = 1.6) +
-      ggplot2::geom_point(colour = caring_blue, size = 5) +
+      ggplot2::geom_point(aes_hover(), colour = caring_blue, size = 5) +
       ggplot2::geom_text(ggplot2::aes(label = fmt_pct(.data$pct)), hjust = -0.4, size = 3.6, colour = "#333333") +
       ggplot2::scale_x_continuous(labels = function(z) fmt_pct(z, 0), expand = ggplot2::expansion(c(0, 0.15)), limits = c(0, NA)) +
       ggplot2::scale_y_discrete(labels = function(z) wrap_labels(z, 28)) +
       ggplot2::labs(x = "% de respuestas válidas", y = NULL) + theme_caring() + grid_x(),
     # barras horizontales
     ggplot2::ggplot(pd, ggplot2::aes(x = .data$pct, y = forcats_rev(.data$cat))) +
-      ggplot2::geom_col(fill = caring_blue, width = 0.7) +
+      ggplot2::geom_col(aes_hover(), fill = caring_blue, width = 0.7) +
       ggplot2::geom_text(ggplot2::aes(label = fmt_pct(.data$pct)), hjust = -0.1, size = 3.6, colour = "#333333") +
       ggplot2::scale_x_continuous(labels = function(z) fmt_pct(z, 0), expand = ggplot2::expansion(c(0, 0.15))) +
       ggplot2::scale_y_discrete(labels = function(z) wrap_labels(z, 28)) +
@@ -120,14 +130,16 @@ plot_num <- function(pd, chart, m, lab) {
 }
 
 # Dos categóricas: pd con grupo, serie, pct; ct = tabla de frecuencias (filas a, columnas b)
-plot_catcat <- function(pd, ct, chart, pct, xl, fl) {
+plot_catcat_ <- function(pd, ct, chart, pct, xl, fl) {
   pal <- rep(caring_palette, length.out = nlevels(pd$serie))
+  pd$hover <- paste0(pd$serie, " · ", pd$grupo, if (!is.null(pd$capa)) paste0(" · ", pd$capa) else "",
+                     "<br><b>", fmt_pct(pd$pct), "</b>")
   ylab <- switch(pct, col = paste("% dentro de", tolower(xl)), row = paste("% dentro de", tolower(xl)), "% del total")
   switch(chart,
     calor = {
       mx <- max(pd$pct)
       ggplot2::ggplot(pd, ggplot2::aes(x = .data$grupo, y = forcats_rev(.data$serie), fill = .data$pct)) +
-        ggplot2::geom_tile(colour = "white", linewidth = 1) +
+        ggplot2::geom_tile(aes_hover(), colour = "white", linewidth = 1) +
         ggplot2::geom_text(ggplot2::aes(label = fmt_pct(.data$pct, 0), colour = .data$pct > mx * 0.55), size = 3.8, show.legend = FALSE) +
         ggplot2::scale_colour_manual(values = c(`TRUE` = "#FFFFFF", `FALSE` = "#1A1A1A")) +
         ggplot2::scale_fill_gradient(low = "#EAF2FE", high = "#135DCD", labels = function(z) fmt_pct(z, 0), name = ylab) +
@@ -137,7 +149,7 @@ plot_catcat <- function(pd, ct, chart, pct, xl, fl) {
         ggplot2::theme(panel.grid = ggplot2::element_blank(), legend.position = "right", legend.title = ggplot2::element_text(size = 10))
     },
     burbujas = ggplot2::ggplot(pd, ggplot2::aes(x = .data$grupo, y = forcats_rev(.data$serie), size = .data$pct, colour = .data$serie)) +
-      ggplot2::geom_point(alpha = 0.85) +
+      ggplot2::geom_point(aes_hover(), alpha = 0.85) +
       ggplot2::geom_text(ggplot2::aes(label = fmt_pct(.data$pct, 0)), size = 3.2, colour = "#1A1A1A", vjust = -1.6) +
       ggplot2::scale_size_area(max_size = 18, guide = "none") +
       ggplot2::scale_colour_manual(values = pal, guide = "none") +
@@ -153,11 +165,12 @@ plot_catcat <- function(pd, ct, chart, pct, xl, fl) {
       rects <- do.call(rbind, lapply(seq_len(nrow(m)), function(i) {
         p <- unname(m[i, ] / tot[i]); y1 <- cumsum(p); y0 <- c(0, utils::head(y1, -1))
         data.frame(grupo = rownames(m)[i], serie = factor(colnames(m), levels = colnames(m)),
-                   x0 = unname(x0[i]), x1 = unname(x1[i]), y0 = y0, y1 = y1, p = p, row.names = NULL)
+                   x0 = unname(x0[i]), x1 = unname(x1[i]), y0 = y0, y1 = y1, p = p, row.names = NULL,
+                   hover = paste0(colnames(m), " · ", rownames(m)[i], "<br><b>", fmt_pct(p), "</b>"))
       }))
       mid <- (x0 + x1) / 2
       ggplot2::ggplot(rects) +
-        ggplot2::geom_rect(ggplot2::aes(xmin = .data$x0, xmax = .data$x1, ymin = .data$y0, ymax = .data$y1, fill = .data$serie),
+        ggplot2::geom_rect(ggplot2::aes(text = .data$hover, xmin = .data$x0, xmax = .data$x1, ymin = .data$y0, ymax = .data$y1, fill = .data$serie),
                            colour = "white", linewidth = 1) +
         ggplot2::geom_text(ggplot2::aes(x = (.data$x0 + .data$x1) / 2, y = (.data$y0 + .data$y1) / 2,
                                         label = ifelse(.data$p >= 0.06 & (.data$x1 - .data$x0) >= 0.06, fmt_pct(.data$p, 0), "")),
@@ -171,7 +184,7 @@ plot_catcat <- function(pd, ct, chart, pct, xl, fl) {
     {
       apil <- chart == "apiladas"
       ggplot2::ggplot(pd, ggplot2::aes(x = .data$grupo, y = .data$pct, fill = .data$serie)) +
-        ggplot2::geom_col(position = if (apil) "stack" else ggplot2::position_dodge(width = 0.8),
+        ggplot2::geom_col(aes_hover(), position = if (apil) "stack" else ggplot2::position_dodge(width = 0.8),
                           width = if (apil) 0.7 else 0.75) +
         (if (apil || nlevels(pd$serie) <= 4)
           ggplot2::geom_text(ggplot2::aes(label = ifelse(.data$pct >= 0.04, fmt_pct(.data$pct, 0), "")),

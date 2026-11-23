@@ -15,7 +15,7 @@ servidor <- "--servidor" %in% commandArgs(trailingOnly = TRUE)
 paquetes <- c(
   "shiny", "bslib", "DBI", "RSQLite", "sodium", "jsonlite", "uuid", "digest",
   "haven", "readxl", "data.table", "netCoin", "ggplot2", "sortable", "reactable",
-  "officer", "flextable", "survey", "magick", "openxlsx", "zip", "base64enc", "webshot2", "chromote", "htmltools", "pkgload", "curl"
+  "officer", "flextable", "survey", "magick", "openxlsx", "zip", "plotly", "htmlwidgets", "base64enc", "webshot2", "chromote", "htmltools", "pkgload", "curl"
 )
 if (!servidor) {
   # solo para las pruebas automáticas
@@ -28,6 +28,11 @@ if (is.null(repos) || !length(repos) || identical(unname(repos["CRAN"]), "@CRAN@
 }
 
 faltan <- paquetes[!vapply(paquetes, requireNamespace, logical(1), quietly = TRUE)]
+# versiones mínimas: si hay una más antigua instalada, se actualiza
+minimas <- c(plotly = "4.11.0", netCoin = "2.1")
+for (p in names(minimas)) {
+  if (p %in% paquetes && !p %in% faltan && utils::packageVersion(p) < minimas[[p]]) faltan <- c(faltan, p)
+}
 if (length(faltan)) {
   message("Instalando: ", paste(faltan, collapse = ", "))
   install.packages(faltan, repos = repos)

@@ -5,16 +5,18 @@ mod_explorar_ui <- function(id) {
   div(class = "c-main",
     div(class = "c-page-title",
       div(tags$h1("Explorar"),
-          div(class = "text-2", "Elige una o dos variables: CARING propone el gráfico, la tabla y la prueba adecuados.")),
-      seg_radio(ns("mode"), c("Una variable" = "one", "Dos variables" = "two"), selected = "one")
+          div(class = "text-2", "Elige las variables: CARING propone el gráfico, la tabla y la prueba adecuados.")),
+      seg_radio(ns("mode"), c("Una variable" = "one", "Dos variables" = "two", "Tres variables" = "three"), selected = "one")
     ),
     div(class = "row g-4",
       div(class = "col-lg-3",
         div(class = "c-card c-card-pad",
           selectInput(ns("v1"), "Variable", choices = NULL),
-          conditionalPanel("input.mode == 'two'", ns = ns,
+          conditionalPanel("input.mode != 'one'", ns = ns,
             selectInput(ns("v2"), "Variable en columnas", choices = NULL),
             actionButton(ns("swap"), HTML("&#8646; Intercambiar filas y columnas"), class = "btn-light-c w-100 mb-3")),
+          conditionalPanel("input.mode == 'three'", ns = ns,
+            selectInput(ns("v3"), "Variable de control (una tabla por cada categoría)", choices = NULL)),
           uiOutput(ns("options")),
           selectInput(ns("weight"), "Ponderar por", choices = c("Sin ponderar" = "")))
       ),
@@ -23,10 +25,15 @@ mod_explorar_ui <- function(id) {
           div(class = "d-flex flex-wrap justify-content-between align-items-start gap-2 mb-2",
             div(tags$h2(textOutput(ns("title"), inline = TRUE)),
                 div(class = "small-2", textOutput(ns("subtitle"), inline = TRUE))),
-            div(class = "d-flex gap-2",
+            div(class = "d-flex gap-2 align-items-center flex-wrap",
+              div(class = "form-check form-switch c-switch",
+                tags$input(class = "form-check-input", type = "checkbox", role = "switch", id = ns("interactive")),
+                tags$label(class = "form-check-label", `for` = ns("interactive"), "Interactivo")),
               downloadButton(ns("dl_png"), "PNG", class = "btn-light-c", icon = NULL),
+              downloadButton(ns("dl_html"), "HTML interactivo", class = "btn-light-c", icon = NULL),
               actionButton(ns("add_plot"), "+ Añadir al informe", class = "btn-primary"))),
-          plotOutput(ns("plot"), height = "460px")),
+          conditionalPanel("!input.interactive", ns = ns, plotOutput(ns("plot"), height = "460px")),
+          conditionalPanel("input.interactive", ns = ns, plotly::plotlyOutput(ns("plotly"), height = "460px"))),
         div(class = "c-card c-card-pad",
           div(class = "d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2",
             tags$h2("Tabla"),
@@ -69,6 +76,9 @@ mod_explorar_server <- function(id, ctx) {
       keep2 <- if (isTRUE(input$v2 %in% ch)) input$v2 else vars_only[min(3, length(vars_only))]
       updateSelectInput(session, "v1", choices = ch, selected = keep1)
       updateSelectInput(session, "v2", choices = ch, selected = keep2)
+      cats <- var_choices(d)[var_choices(d) %in% categorical_vars(d)]
+      keep3 <- if (isTRUE(input$v3 %in% cats)) input$v3 else cats[min(1, length(cats))]
+      updateSelectInput(session, "v3", choices = cats, selected = keep3)
       nums <- numeric_vars(d)
       wsel <- if (isTRUE(input$weight %in% nums)) input$weight else ""
       updateSelectInput(session, "weight", choices = c("Sin ponderar" = "", nums), selected = wsel)
@@ -79,12 +89,17 @@ mod_explorar_server <- function(id, ctx) {
       d <- data()
       req(valid_choice(d, input$v1))
       if (input$mode == "two") { req(valid_choice(d, input$v2)); chart_kind(d, input$v1, input$v2) }
+      else if (input$mode == "three") {
+        req(valid_choice(d, input$v2))
+        k <- chart_kind(d, input$v1, input$v2)
+        if (k %in% c("catcat", "numcat")) paste0(k, "3") else k
+      }
       else chart_kind(d, input$v1)
     })
 
     # Nombres de los selectores: en dos variables, una va en filas y otra en columnas
     observeEvent(input$mode, {
-      updateSelectInput(session, "v1", label = if (input$mode == "two") "Variable en filas" else "Variable")
+      updateSelectInput(session, "v1", label = if (input$mode != "one") "Variable en filas" else "Variable")
     })
 
     observeEvent(input$swap, {
@@ -101,7 +116,7 @@ mod_explorar_server <- function(id, ctx) {
         if (length(ch)) selectInput(ns("chart"), "Tipo de gráfico", ch,
                                     selected = if (isTRUE(isolate(input$chart) %in% ch)) isolate(input$chart) else ch[1]),
         if (k == "mrcat") checkboxInput(ns("counts"), "Mostrar también los recuentos (n) en la tabla", value = isTRUE(isolate(input$counts))),
-        if (k == "catcat") tagList(
+        if (k %in% c("catcat", "catcat3")) tagList(
           radioButtons(ns("pct"), "Porcentajes",
             c("Verticales (cada columna suma 100 %)" = "col", "Horizontales (cada fila suma 100 %)" = "row",
               "Sobre el total" = "total"),
@@ -112,7 +127,8 @@ mod_explorar_server <- function(id, ctx) {
     result <- reactive({
       d <- data()
       req(valid_choice(d, input$v1))
-      if (input$mode == "two") req(valid_choice(d, input$v2))
+      if (input$mode != "one") req(valid_choice(d, input$v2))
+      if (input$mode == "three") req(input$v3 %in% names(d))
       tryCatch(explore_from_spec(d, explore_spec()), error = function(e) list(error = error_es(e)))
     })
 
@@ -126,6 +142,23 @@ mod_explorar_server <- function(id, ctx) {
       r$plot
     }, res = 110)
 
+    output$plotly <- plotly::renderPlotly({
+      req(isTRUE(input$interactive))
+      r <- result()
+      validate(need(is.null(r$error), r$error))
+      validate(need(!is.null(r$plot), "Esta variable no tiene gráfico."))
+      to_plotly(r)
+    })
+
+    output$dl_html <- downloadHandler(
+      filename = function() paste0(safe_filename(result()$title), ".html"),
+      content = function(file) {
+        r <- result()
+        if (is.null(r$plot)) stop("Este resultado no tiene gráfico.")
+        save_plotly_html(to_plotly(r), file, title = r$title)
+      }
+    )
+
     output$stats <- renderUI({
       r <- result()
       if (!is.null(r$error)) return(div(class = "c-msg-error", r$error))
@@ -137,7 +170,7 @@ mod_explorar_server <- function(id, ctx) {
       req(is.null(r$error))
       dir_note <- if (input$mode == "two" && identical(kind(), "mrcat")) {
         "↓ % de casos de cada grupo: las columnas suman más de 100 % porque se puede marcar más de una opción."
-      } else if (input$mode == "two" && identical(kind(), "catcat")) {
+      } else if (input$mode != "one" && kind() %in% c("catcat", "catcat3")) {
         switch(input$pct %||% "col",
           col = "↓ Porcentajes verticales: cada columna suma 100 % (fila Total).",
           row = "→ Porcentajes horizontales: cada fila suma 100 % (columna Total).",
@@ -149,7 +182,8 @@ mod_explorar_server <- function(id, ctx) {
     })
 
     explore_spec <- function() {
-      list(mode = input$mode, v1 = input$v1, v2 = if (input$mode == "two") input$v2,
+      list(mode = input$mode, v1 = input$v1, v2 = if (input$mode != "one") input$v2,
+           v3 = if (input$mode == "three") input$v3,
            weight = if (nzchar(input$weight %||% "")) input$weight, pct = input$pct %||% "col",
            chart = input$chart, counts = isTRUE(input$counts))
     }

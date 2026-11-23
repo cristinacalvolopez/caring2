@@ -123,8 +123,9 @@ explore_one <- function(d, v, weight = NULL, chart = NULL) {
     tab <- rbind(tab, data.frame(Categoría = "Total", n = round(tot, 1), `%` = "100,0 %",
                                  `% válido` = "", check.names = FALSE))
     pd <- data.frame(cat = factor(lv, levels = lv), pct = n / sum(n), n = n)
-    p <- plot_cat(pd, pick_chart(chart, "cat"))
-    list(title = lab, subtitle = paste0("Frecuencias · n = ", fmt_int(round(sum(n))), wtxt),
+    ch <- pick_chart(chart, "cat")
+    p <- plot_cat(pd, ch)
+    list(pd = pd, chart = ch, title = lab, subtitle = paste0("Frecuencias · n = ", fmt_int(round(sum(n))), wtxt),
          table = tab, stats = paste0("Categoría más frecuente: ", lv[which.max(n)], " (", fmt_pct(max(n) / sum(n)), ")."),
          plot = p)
   } else if (is.numeric(x)) {
@@ -212,7 +213,7 @@ explore_catcat <- function(d, v1, v2, weight, pct, chart, counts = FALSE) {
     pd$grupo <- pd$b; pd$serie <- pd$a; xl <- var_label(d, v2); fl <- var_label(d, v1)
   }
   p <- plot_catcat(pd, ct, pick_chart(chart, "catcat"), pct, xl, fl)
-  list(title = paste(var_label(d, v1), "según", tolower(var_label(d, v2))),
+  list(test = test, pd = pd, xl = xl, fl = fl, title = paste(var_label(d, v1), "según", tolower(var_label(d, v2))),
        subtitle = paste0(var_label(d, v1), " en filas · ", var_label(d, v2), " en columnas · ",
                          switch(pct, col = "% verticales (por columna)", row = "% horizontales (por fila)", "% sobre el total"),
                          " · n = ", fmt_int(round(n)), if (!is.null(weight) && nzchar(weight)) " · ponderado" else ""),
@@ -233,6 +234,7 @@ explore_numcat <- function(d, vn, vc, weight, chart = NULL) {
   names(tab)[1] <- var_label(d, vc)
   fit <- tryCatch(stats::lm(x ~ g, weights = ww), error = function(e) NULL)
   stats_txt <- "No se ha podido calcular la prueba."
+  a <- NULL
   if (!is.null(fit) && nlevels(g) > 1) {
     a <- stats::anova(fit)
     eta2 <- a[1, "Sum Sq"] / sum(a[, "Sum Sq"])
@@ -242,7 +244,7 @@ explore_numcat <- function(d, vn, vc, weight, chart = NULL) {
   }
   pd <- data.frame(x = x, g = g, w = ww)
   p <- plot_numcat(pd, pick_chart(chart, "numcat"), var_label(d, vc), var_label(d, vn))
-  list(title = paste(var_label(d, vn), "según", tolower(var_label(d, vc))),
+  list(anova = a, pd = pd, title = paste(var_label(d, vn), "según", tolower(var_label(d, vc))),
        subtitle = paste0("Comparación de grupos · n = ", fmt_int(length(x))),
        table = tab, stats = stats_txt, plot = p)
 }
@@ -269,6 +271,10 @@ explore_numnum <- function(d, v1, v2, weight, chart = NULL) {
 # con cada resultado): modo, variables, ponderación y opciones.
 explore_from_spec <- function(d, spec) {
   v1 <- spec$v1; v2 <- spec$v2; w <- spec$weight
+  if (identical(spec$mode, "three")) {
+    return(explore_three(d, v1, v2, spec$v3, weight = w, pct = spec$pct %||% "col", chart = spec$chart,
+                         counts = isTRUE(spec$counts)))
+  }
   if (identical(spec$mode, "two")) {
     if (identical(v1, v2)) stop("Elige dos variables distintas.")
     if (startsWith(v1, "mr:") || startsWith(v2, "mr:")) {
@@ -391,4 +397,79 @@ explore_mr_cat <- function(d, id, vc, weight = NULL, chart = NULL, counts = FALS
        stats = paste0(sig, " de ", length(p_opt), " opciones difieren entre grupos de forma significativa ",
                       "(χ² de cada opción; * p < 0,05, ** p < 0,01, *** p < 0,001). ",
                       "Cada columna suma más de 100 % porque se puede marcar más de una opción."))
+}
+
+# Tres variables: la relación entre dos variables dentro de cada categoría de una
+# tercera (variable de control). Una tabla y una prueba por cada grupo de control.
+explore_three <- function(d, v1, v2, v3, weight = NULL, pct = "col", chart = NULL, counts = FALSE) {
+  for (v in c(v1, v2, v3)) need_var(d, v)
+  if (any(startsWith(c(v1, v2, v3), "mr:"))) stop("Los conjuntos de respuesta múltiple no se pueden usar con tres variables.")
+  if (anyDuplicated(c(v1, v2, v3))) stop("Elige tres variables distintas.")
+  if (!is.factor(d[[v3]])) stop("La variable de control tiene que ser categórica. Si es numérica, agrúpala en tramos en el paso Datos.")
+  k <- chart_kind(d, v1, v2)
+  if (!k %in% c("catcat", "numcat")) {
+    stop("Con variable de control se pueden cruzar dos categóricas, o una numérica y una categórica.")
+  }
+  ctrl <- droplevels(d[[v3]])
+  capas <- levels(ctrl)
+  if (length(capas) > 12) stop("La variable de control tiene demasiadas categorías (", length(capas), "). Agrúpalas antes en el paso Datos.")
+  kind3 <- paste0(k, "3")
+  ch <- pick_chart(chart, kind3)
+  lab3 <- var_label(d, v3)
+  partes <- list(); tabs <- list(); pds <- list(); lineas <- character(); sig <- 0; validas <- 0
+  for (L in capas) {
+    sub <- subset_rows(d, !is.na(ctrl) & ctrl == L)
+    r <- tryCatch(if (k == "catcat") explore_catcat(sub, v1, v2, weight, pct, NULL, counts)
+                  else if (is.numeric(d[[v1]])) explore_numcat(sub, v1, v2, weight)
+                  else explore_numcat(sub, v2, v1, weight),
+                  error = function(e) NULL)
+    if (is.null(r)) { lineas <- c(lineas, paste0(L, ": sin casos suficientes")); next }
+    tb <- r$table
+    tb <- cbind(stats::setNames(data.frame(c(L, rep("", nrow(tb) - 1)), check.names = FALSE), lab3), tb)
+    tabs[[L]] <- tb
+    pd <- r$pd; pd$capa <- L; pds[[L]] <- pd
+    if (k == "catcat") {
+      t <- r$test
+      if (!is.na(t$p)) { validas <- validas + 1; if (t$p < 0.05) sig <- sig + 1 }
+      lineas <- c(lineas, paste0(L, ": ", chisq_txt(t), " · ", p_txt(t$p), " · V = ", fmt_num(t$v)))
+    } else if (!is.null(r$anova)) {
+      a <- r$anova; pv <- a[1, "Pr(>F)"]
+      validas <- validas + 1; if (isTRUE(pv < 0.05)) sig <- sig + 1
+      lineas <- c(lineas, paste0(L, ": F(", a[1, "Df"], ", ", a[2, "Df"], ") = ", fmt_num(a[1, "F value"]), " · ", p_txt(pv)))
+    }
+  }
+  if (!length(tabs)) stop("Ningún grupo de la variable de control tiene casos suficientes.")
+  tab <- rbind_fill_chr(tabs)
+  pd <- do.call(rbind, pds)
+  pd$capa <- factor(pd$capa, levels = capas)
+  faceta <- ggplot2::facet_wrap(ggplot2::vars(.data$capa), labeller = ggplot2::label_wrap_gen(28),
+                                ncol = min(3, length(pds)))
+  p <- if (k == "catcat") {
+    plot_catcat(pd, NULL, ch, pct, if (pct == "row") var_label(d, v1) else var_label(d, v2),
+                if (pct == "row") var_label(d, v2) else var_label(d, v1)) + faceta
+  } else {
+    vn <- if (is.numeric(d[[v1]])) v1 else v2; vc <- setdiff(c(v1, v2), vn)
+    plot_numcat(pd, ch, var_label(d, vc), var_label(d, vn)) + faceta
+  }
+  p <- p + ggplot2::theme(strip.text = ggplot2::element_text(face = "bold", size = 11, hjust = 0),
+                          strip.background = ggplot2::element_rect(fill = "#EEF4FE", colour = NA))
+  prueba <- if (k == "catcat") "χ²" else "ANOVA"
+  list(title = paste0(var_label(d, v1), " según ", tolower(var_label(d, v2)), ", por ", tolower(lab3)),
+       subtitle = paste0("Control: ", lab3, " · ", length(tabs), " grupos",
+                         if (k == "catcat") paste0(" · ", switch(pct, col = "% verticales", row = "% horizontales", "% sobre el total de cada grupo")),
+                         if (!is.null(weight) && nzchar(weight)) " · ponderado" else ""),
+       table = tab, plot = p, kind = kind3,
+       stats = paste0("La relación es significativa (p < 0,05) en ", sig, " de ", validas, " grupos de ", tolower(lab3),
+                      " (", prueba, " en cada grupo). ", paste(lineas, collapse = " | "), "."))
+}
+
+# Une tablas de texto con columnas distintas (las que faltan quedan con «—»).
+rbind_fill_chr <- function(tabs) {
+  cols <- unique(unlist(lapply(tabs, names)))
+  out <- do.call(rbind, unname(lapply(tabs, function(t) {
+    for (c in setdiff(cols, names(t))) t[[c]] <- "—"
+    t[cols]
+  })))
+  rownames(out) <- NULL
+  out
 }

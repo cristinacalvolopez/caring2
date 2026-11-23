@@ -36,6 +36,8 @@ Imports:
     magick,
     openxlsx,
     zip,
+    plotly (>= 4.11.0),
+    htmlwidgets,
     ggplot2,
     sortable,
     chromote,
