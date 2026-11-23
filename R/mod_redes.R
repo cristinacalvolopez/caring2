@@ -8,11 +8,9 @@ mod_redes_ui <- function(id) {
       div(class = "col-xl-3 col-lg-4",
         div(class = "c-card c-card-pad mb-3 c-analysis",
           tags$h2("¿Qué quieres ver?"),
-          radioButtons(ns("type"), NULL, selected = "coincidencias",
-            choiceValues = types,
-            choiceNames = lapply(types, function(t) tagList(
-              span(class = "a-title", net_types[[t]]$titulo),
-              span(class = "a-desc", net_types[[t]]$desc))))
+          selectInput(ns("type"), NULL, selected = "factorial",
+            choices = stats::setNames(types, vapply(net_types, function(x) x$titulo, ""))),
+          uiOutput(ns("type_desc"))
         ),
         div(class = "c-card c-card-pad",
           uiOutput(ns("var_inputs")),
@@ -59,9 +57,13 @@ mod_redes_server <- function(id, ctx) {
                         selected = if (isTRUE(input$weight %in% nums)) input$weight else "")
     })
 
+    output$type_desc <- renderUI({
+      p(class = "c-hint", style = "margin:-4px 0 0", net_types[[input$type %||% "factorial"]]$desc)
+    })
+
     output$var_inputs <- renderUI({
       d <- data()
-      t <- input$type %||% "coincidencias"
+      t <- input$type %||% "factorial"
       cats <- labelled_choices(d, categorical_vars(d))
       nums <- labelled_choices(d, numeric_vars(d))
       txt <- labelled_choices(d, names(d)[vapply(d, is.character, logical(1))])
@@ -109,7 +111,29 @@ mod_redes_server <- function(id, ctx) {
         coincidencias = multi(cats, "Variables", "Categóricas. Cada categoría será un nodo. Las numéricas se pueden agrupar en tramos en Datos."),
         loglineal = multi(cats, "Variables", "Categóricas. Mejor pocas variables (3–6)."),
         correlaciones = multi(nums, "Variables", "Numéricas. Cada variable será un nodo."),
-        factorial = multi(c(cats, nums), "Variables", "Categóricas o numéricas."),
+        factorial = {
+          # Dos modelos distintos: correspondencias múltiples (cualitativas) y componentes principales (cuantitativas)
+          ft <- input$f_type
+          if (!isTRUE(ft %in% c("mca", "pca"))) ft <- if (length(cats) >= 2 || !length(nums)) "mca" else "pca"
+          act <- if (ft == "mca") cats else nums
+          todas_vars <- c(cats, nums)
+          tagList(
+            radioButtons(ns("f_type"), "Tipo de análisis", selected = ft,
+              choiceValues = c("mca", "pca"),
+              choiceNames = c("Correspondencias (variables cualitativas)",
+                              "Factorial (variables cuantitativas)")),
+            selectizeInput(ns("vars"), "Variables activas", choices = act, multiple = TRUE,
+                           selected = intersect(prev, act),
+                           options = list(plugins = list("remove_button"), placeholder = "Elige variables…")),
+            p(class = "c-hint", style = "margin-top:-8px",
+              if (ft == "mca") "Categóricas. Construyen los ejes. Las numéricas se pueden agrupar en tramos en Datos."
+              else "Numéricas. Construyen los ejes."),
+            selectizeInput(ns("passive"), "Variables pasivas (opcional)", choices = todas_vars, multiple = TRUE,
+                           selected = intersect(isolate(input$passive), todas_vars),
+                           options = list(plugins = list("remove_button"), placeholder = "Categóricas o numéricas…")),
+            p(class = "c-hint", style = "margin-top:-8px",
+              "No intervienen en los ejes: se describen sobre ellos (se ven al pulsar cada punto). Pueden ser categóricas o numéricas. Se excluyen los casos con datos perdidos en cualquiera de ellas."))
+        },
         regresion = tagList(
           selectInput(ns("dep"), "Variable que quieres explicar", choices = c(cats, nums)),
           multi(c(cats, nums), "Variables explicativas", "Pueden ser categóricas o numéricas.")),
@@ -161,7 +185,7 @@ mod_redes_server <- function(id, ctx) {
     keep <- function(id, default) { v <- isolate(input[[id]]); if (is.null(v)) default else v }
 
     output$main_opts <- renderUI({
-      o <- net_options(input$type %||% "coincidencias")
+      o <- net_options(input$type %||% "factorial")
       tagList(
         if ("procedure" %in% o) selectInput(ns("procedure"), "Unir dos categorías cuando…",
           stats::setNames(similarity_measures,
@@ -173,8 +197,13 @@ mod_redes_server <- function(id, ctx) {
           selected = keep("method", "pearson")),
         if ("order" %in% o) radioButtons(ns("order"), "Orden del modelo log-lineal",
           c("2 · asociaciones entre pares" = 2, "3 · también entre tríos" = 3), selected = keep("order", 2)),
-        if ("nclusters" %in% o) numericInput(ns("nclusters"), "Número de conglomerados (0 = ninguno)",
-          value = keep("nclusters", 0), min = 0, max = 12),
+        if ("nclusters" %in% o) tagList(
+          textInput(ns("nclusters"), "Número de conglomerados", value = keep("nclusters", "2"),
+                    placeholder = "2"),
+          p(class = "c-hint", style = "margin-top:-8px",
+            "Un número (3), un rango (2:4), varios (3, 5) o ", tags$code("auto"),
+            " para que se elija solo (también ", tags$code("auto, 2:6"),
+            "). Con varios, el último colorea el gráfico. 0 = sin conglomerados.")),
         if ("clusters" %in% o) selectInput(ns("clusters"), "Método de conglomerados",
           c("K-medias" = "kmeans", "PAM (medoides)" = "pam", "Jerárquico" = "hclust"), selected = keep("clusters", "kmeans")),
         if ("signif" %in% o) checkboxInput(ns("signif"), "Mostrar solo relaciones significativas (p < 0,05)", value = keep("signif", TRUE)),
@@ -186,7 +215,7 @@ mod_redes_server <- function(id, ctx) {
     })
 
     output$adv_opts <- renderUI({
-      o <- net_options(input$type %||% "coincidencias")
+      o <- net_options(input$type %||% "factorial")
       tagList(
         if ("bonferroni" %in% o) checkboxInput(ns("bonferroni"), "Corrección de Bonferroni (más exigente con muchas variables)",
                                                value = keep("bonferroni", FALSE)),
@@ -201,10 +230,12 @@ mod_redes_server <- function(id, ctx) {
 
     # Solo se envían las opciones que corresponden al tipo de análisis elegido.
     spec <- reactive({
-      t <- input$type %||% "coincidencias"
+      t <- input$type %||% "factorial"
       o <- net_options(t)
       val <- function(k, v) if (k %in% o) v
       compact(list(type = t, vars = input$vars, dep = if (t == "regresion") input$dep,
+           ftype = if (t == "factorial") input$f_type,
+           passive = if (t == "factorial") setdiff(input$passive, input$vars),
            weight = input$weight, title = input$title, note = input$note, cex = input$cex,
            sep = if (t == "multiple") input$sep, cross = if (t == "multiple") input$cross,
            signif = if ("signif" %in% o) isTRUE(input$signif),
@@ -249,7 +280,7 @@ mod_redes_server <- function(id, ctx) {
       if (is.null(current$net)) return("Elige el tipo de análisis y las variables, y pulsa «Crear red».")
       sm <- net_summary(current$net)
       if (current$spec$type == "factorial") {
-        return(paste0("Mapa factorial · ", fmt_int(sm$nodes), " puntos"))
+        return(paste0("Nube de puntos (factorial) · ", fmt_int(sm$nodes), " puntos"))
       }
       if (current$spec$type == "evolucion") return(paste0("Evolución temporal · ", fmt_int(sm$nodes), " periodos"))
       if (current$spec$type == "trayectorias") {
@@ -372,6 +403,8 @@ net_code <- function(s) {
     "# CARING traduce esta especificación en la llamada a netCoin:",
     "red <- caring2:::net_build(datos, list(",
     paste0("  type = \"", s$type, "\", vars = c(", paste0('"', s$vars, '"', collapse = ", "), ")",
+           if (length(s$ftype)) paste0(", ftype = \"", s$ftype, "\""),
+           if (length(s$passive)) paste0(", passive = c(", paste0('"', s$passive, '"', collapse = ", "), ")"),
            if (length(s$dep) && nzchar(s$dep)) paste0(", dep = \"", s$dep, "\""),
            if (nzchar(s$weight %||% "")) paste0(", weight = \"", s$weight, "\""),
            ", signif = ", isTRUE(s$signif),

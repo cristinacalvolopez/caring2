@@ -96,6 +96,26 @@ test_that("cada tipo de red tiene sus propias opciones y las usa", {
   expect_true(inherits(suppressWarnings(net_build(d, list(type = "loglineal", vars = c("genero", "internet", "prensa"), order = 3))), "netCoin"))
 })
 
+test_that("nube de puntos: tipo, variables pasivas y número de conglomerados", {
+  d <- read_any(demo_sav())
+  expect_equal(parse_nclusters("3"), 3L)
+  expect_equal(parse_nclusters("2:4"), 2:4)
+  expect_equal(parse_nclusters("3, 5, 3"), c(3L, 5L, 3L))
+  expect_equal(parse_nclusters("auto, 2:3"), c("auto", "2", "3"))
+  expect_equal(parse_nclusters("0"), 0L)
+  expect_null(parse_nclusters(""))
+  expect_error(parse_nclusters("tres"), "No entiendo")
+  v <- c("genero", "educacion", "internet")
+  for (nc in c("3", "2:4", "3, 5", "auto", "auto, 2:4", "0")) {
+    expect_true(inherits(suppressWarnings(net_build(d, list(type = "factorial", ftype = "mca", vars = v,
+      passive = c("edad", "prensa"), nclusters = nc))), "netCoin"), info = nc)
+  }
+  expect_true(inherits(suppressWarnings(net_build(d, list(type = "factorial", ftype = "pca",
+    vars = c("edad", "ingresos"), passive = "genero"))), "netCoin"))
+  expect_error(net_build(d, list(type = "factorial", ftype = "pca", vars = c("genero", "edad"))), "no son numéricas")
+  expect_error(net_build(d, list(type = "factorial", ftype = "mca", vars = c("edad", "ingresos"))), "no son categóricas")
+})
+
 test_that("tabla cruzada: porcentajes verticales, horizontales y totales, en ambos sentidos", {
   d <- read_any(demo_sav())
   num <- function(x) as.numeric(gsub(",", ".", gsub(" %.*| \\(.*", "", x)))

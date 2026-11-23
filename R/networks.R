@@ -1,6 +1,10 @@
 # Redes con netCoin -----------------------------------------------------------------
 
 net_types <- list(
+  factorial = list(
+    titulo = "Nube de puntos (factorial)",
+    desc = "Casos en un plano: correspondencias (cualitativas) o factorial (cuantitativas), con conglomerados y variables pasivas (surScat)",
+    vars = "categóricas o numéricas", min = 2),
   coincidencias = list(
     titulo = "Coincidencias",
     desc = "Qué categorías aparecen juntas más de lo esperado (surCoin)",
@@ -9,10 +13,6 @@ net_types <- list(
     titulo = "Correlaciones",
     desc = "Red entre variables numéricas (netCorr)",
     vars = "numéricas", min = 2),
-  factorial = list(
-    titulo = "Mapa factorial",
-    desc = "Casos y categorías en un plano, con conglomerados (surScat)",
-    vars = "categóricas o numéricas", min = 2),
   loglineal = list(
     titulo = "Log-lineal",
     desc = "Asociaciones entre categorías controlando las demás (logCoin)",
@@ -114,15 +114,24 @@ net_build <- function(d, spec) {
         Bonferroni = isTRUE(spec$bonferroni))), common))
     },
     factorial = {
-      if (length(vars) < min_need) stop("Elige al menos ", min_need, " variables.")
-      dd <- d[c(vars, w)]
-      args <- c(compact(list(data = dd, variables = vars, weight = w)), common)
+      # ftype: "mca" (correspondencias, activas cualitativas) o "pca" (factorial, activas cuantitativas);
+      # sin él (informes antiguos) surScat lo decide según las variables. Las pasivas no construyen los ejes.
+      ftype <- spec$ftype
+      if (identical(ftype, "mca")) check_types(d, vars, "cat", min_need)
+      else if (identical(ftype, "pca")) check_types(d, vars, "num", min_need)
+      if (length(vars) < min_need) stop("Elige al menos ", min_need, " variables activas.")
+      passive <- setdiff(spec$passive %||% character(), vars)
+      for (v in passive) need_var(d, v)
+      dd <- d[c(vars, passive, w)]
+      args <- c(compact(list(data = dd, variables = c(vars, passive), active = vars, weight = w, type = ftype)), common)
       args$layout <- NULL
       args$degreeFilter <- NULL
       args$community <- NULL
-      if (isTRUE(spec$nclusters >= 2)) {
-        args$nclusters <- spec$nclusters
-        args$clusters <- spec$clusters %||% "kmeans"
+      nc <- parse_nclusters(spec$nclusters)
+      if (!is.null(nc)) {
+        args$nclusters <- nc
+        # El método adicional de conglomerados solo tiene sentido con números de grupos concretos
+        if (!is.character(nc) && any(nc >= 2)) args$clusters <- spec$clusters %||% "kmeans"
       }
       do.call(netCoin::surScat, args)
     },
@@ -279,6 +288,30 @@ mr_network_incidences <- function(d, spec) {
 nz <- function(x) if (is.null(x) || length(x) == 0 || identical(x, "") || all(is.na(x))) NULL else x
 
 compact <- function(x) x[!vapply(x, is.null, logical(1))]
+
+# Número de conglomerados de la nube de puntos. Acepta "3", "2:4", "3, 5, 3", "auto" o "auto, 2:6"
+# (el último es la solución principal). "0" = sin conglomerados; vacío = el valor de surScat (2).
+# Devuelve NULL, un vector de enteros, o un vector de texto si incluye "auto".
+parse_nclusters <- function(x) {
+  if (is.null(x) || !length(x) || all(is.na(x))) return(NULL)
+  # Informes antiguos guardaban un número (0 = sin indicar)
+  if (is.numeric(x) && length(x) == 1 && x < 2) return(NULL)
+  txt <- tolower(gsub("^\\s*c\\(|\\)\\s*$", "", paste(x, collapse = ",")))
+  tok <- strsplit(txt, "[,;[:space:]]+")[[1]]
+  tok <- tok[nzchar(tok)]
+  if (!length(tok)) return(NULL)
+  out <- list()
+  for (t in tok) {
+    if (t == "auto") out <- c(out, "auto")
+    else if (grepl("^[0-9]+$", t)) out <- c(out, as.integer(t))
+    else if (grepl("^[0-9]+:[0-9]+$", t)) {
+      ab <- as.integer(strsplit(t, ":")[[1]])
+      out <- c(out, as.list(ab[1]:ab[2]))
+    } else stop("No entiendo «", t, "» en el número de conglomerados. Usa, por ejemplo, 3 · 2:4 · 3, 5 · auto · auto, 2:6.")
+  }
+  v <- unlist(out)
+  if (is.character(v)) v else as.integer(v)
+}
 
 check_types <- function(d, vars, kind, min_need) {
   if (length(vars) < min_need) stop("Elige al menos ", min_need, " variables.")
