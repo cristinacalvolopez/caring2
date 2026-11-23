@@ -5,7 +5,8 @@ mod_datos_ui <- function(id) {
   div(class = "c-main",
     div(class = "c-page-title",
       div(tags$h1("Datos"), div(class = "text-2", textOutput(ns("summary"), inline = TRUE))),
-      seg_radio(ns("view"), c("Variables" = "variables", "Tabla de casos" = "casos", "Filtrar casos" = "filtro"))
+      seg_radio(ns("view"), c("Variables" = "variables", "Tabla de casos" = "casos", "Filtrar casos" = "filtro",
+                              "Revisar" = "revisar"))
     ),
     conditionalPanel("input.view == 'variables'", ns = ns,
       div(class = "row g-4",
@@ -16,6 +17,7 @@ mod_datos_ui <- function(id) {
               span(class = "c-hint", "Pulsa una variable para editarla."),
               div(class = "d-flex flex-wrap gap-2",
                 actionButton(ns("new_mr"), "+ Conjunto de respuesta múltiple", class = "btn-outline-primary"),
+                datos_tools_menu(ns),
                 actionButton(ns("new_var"), "+ Nueva variable", class = "btn-primary"))),
             uiOutput(ns("label_notice")),
             div(style = "padding:4px 8px 8px", reactable::reactableOutput(ns("vars")))
@@ -39,6 +41,7 @@ mod_datos_ui <- function(id) {
         uiOutput(ns("cases_note")),
         reactable::reactableOutput(ns("cases")))
     ),
+    conditionalPanel("input.view == 'revisar'", ns = ns, datos_review_ui(ns)),
     conditionalPanel("input.view == 'filtro'", ns = ns,
       div(class = "row g-4",
         div(class = "col-lg-7",
@@ -97,6 +100,7 @@ mod_datos_server <- function(id, ctx) {
     data <- ctx$data
     proj <- ctx$proj
     sel <- reactiveVal(NULL)
+    datos_tools_server(input, output, session, ctx, sel)
 
     output$summary <- renderText({
       d <- data()
@@ -506,7 +510,7 @@ mod_datos_server <- function(id, ctx) {
       r <- proj$recipe
       req(i >= 1, i <= length(r))
       nr <- r[-i]
-      test <- tryCatch(apply_recipe(proj$original, nr), error = function(e) e)
+      test <- tryCatch(apply_recipe(proj$original, nr, proj$dir), error = function(e) e)
       if (inherits(test, "error")) {
         return(showNotification(paste("No se puede quitar este paso porque otros dependen de él:", error_es(test)),
                                 type = "error", duration = 10))

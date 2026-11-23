@@ -17,7 +17,10 @@ mod_project_ui <- function(id) {
             tags$li(downloadLink(ns("dl_sav"), "SPSS (.sav)", class = "dropdown-item")),
             tags$li(downloadLink(ns("dl_dta"), "Stata (.dta)", class = "dropdown-item")),
             tags$li(downloadLink(ns("dl_rds"), "R (.rds)", class = "dropdown-item")),
-            tags$li(downloadLink(ns("dl_csv"), "CSV (.csv)", class = "dropdown-item")))),
+            tags$li(downloadLink(ns("dl_csv"), "CSV (.csv)", class = "dropdown-item")),
+            tags$li(tags$hr(class = "dropdown-divider")),
+            tags$li(downloadLink(ns("dl_project"), "Proyecto completo (.caring)", class = "dropdown-item",
+                                 title = "Datos, cambios, resultados e informes, para abrirlo en otro CARING")))),
         uiOutput(ns("share_btn"), inline = TRUE))
     ),
     bslib::navset_hidden(id = ns("panels"),
@@ -62,7 +65,7 @@ mod_project_server <- function(id, con, state) {
     data <- reactive({
       proj$version
       req(proj$original)
-      tryCatch(apply_recipe(proj$original, proj$recipe), error = function(e) {
+      tryCatch(apply_recipe(proj$original, proj$recipe, proj$dir), error = function(e) {
         notify_error(paste("Error al aplicar los cambios:", error_es(e)))
         proj$original
       })
@@ -71,7 +74,7 @@ mod_project_server <- function(id, con, state) {
     # Añade un paso a la receta (comprueba permisos y que el paso funciona)
     add_step <- function(step) {
       if (!can_edit(proj$permiso)) { showNotification("Este proyecto es de solo lectura.", type = "error"); return(FALSE) }
-      test <- tryCatch(apply_step(data(), step), error = function(e) e)
+      test <- tryCatch(apply_step(data(), step, proj$dir), error = function(e) e)
       if (inherits(test, "error")) { notify_error(test); return(FALSE) }
       proj$recipe <- c(proj$recipe, list(step))
       persist()
@@ -91,7 +94,7 @@ mod_project_server <- function(id, con, state) {
       proj$saved <- Sys.time()
       proj$version <- proj$version + 1
     }
-    data_try <- function() tryCatch(apply_recipe(proj$original, proj$recipe), error = function(e) proj$original)
+    data_try <- function() tryCatch(apply_recipe(proj$original, proj$recipe, proj$dir), error = function(e) proj$original)
     results_changed <- function() {
       touch_project(con, proj$id)
       proj$results_version <- proj$results_version + 1
@@ -158,6 +161,12 @@ mod_project_server <- function(id, con, state) {
       )
       outputOptions(output, paste0("dl_", f), suspendWhenHidden = FALSE)
     })
+
+    output$dl_project <- downloadHandler(
+      filename = function() paste0(safe_filename(proj$info$nombre), ".caring"),
+      content = function(file) withProgress(message = "Preparando el proyecto…", value = 0.5, export_project(con, proj$id, file))
+    )
+    outputOptions(output, "dl_project", suspendWhenHidden = FALSE)
 
     invisible(proj)
   })

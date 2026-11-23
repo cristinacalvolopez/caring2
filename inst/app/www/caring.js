@@ -127,3 +127,16 @@
     if (ev.error && typeof ev.error.message === "string") ev.error.message = traducir(ev.error.message);
   });
 })();
+
+// Textos de la barra de subida de archivos de Shiny en español.
+(function () {
+  var es = { "Upload complete": "Archivo subido", "Finishing upload": "Terminando la subida…" };
+  new MutationObserver(function (muts) {
+    muts.forEach(function (m) {
+      var el = m.target.nodeType === 3 ? m.target.parentNode : m.target;
+      if (!el || !el.classList || !el.classList.contains("progress-bar")) return;
+      var t = (el.textContent || "").trim();
+      if (es[t]) el.textContent = es[t];
+    });
+  }).observe(document.documentElement, { subtree: true, childList: true, characterData: true });
+})();

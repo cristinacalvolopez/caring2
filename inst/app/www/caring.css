@@ -316,3 +316,14 @@ pre.c-code { background: #F5F5F5; border: 1px solid var(--c-border-2); border-ra
 .c-mr-sug > summary { cursor: pointer; color: #1F5FC4; list-style: revert; }
 .c-mr-sug > summary .small-2 { color: #555; }
 .c-mr-sug[open] > summary { margin-bottom: 2px; }
+
+/* Datos · Revisar y herramientas */
+.c-msg-warn { background: #FFF6E0; border: 1px solid #F2D58A; color: #5C4300; border-radius: 8px; padding: 8px 12px; font-size: 14px; }
+.c-problems { display: grid; gap: 8px; }
+.c-problem { display: grid; grid-template-columns: 34px 1fr auto; gap: 12px; align-items: center;
+  padding: 10px 12px; border: 1px solid #E3E3E3; border-radius: 10px; background: #FFF; }
+.c-problem-ico { width: 34px; height: 34px; border-radius: 50%; background: #EEF4FE; color: #1F5FC4;
+  display: grid; place-items: center; font-weight: 700; font-size: 15px; }
+.c-problem-txt .small-2 { color: #444; }
+@media (max-width: 640px) { .c-problem { grid-template-columns: 34px 1fr; } .c-problem-act { grid-column: 2; } }
+.dropdown-menu .dropdown-header { color: #555; font-size: 12px; }

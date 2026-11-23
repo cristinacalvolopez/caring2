@@ -66,11 +66,12 @@ mod_projects_server <- function(id, con, state, on_open) {
         title = "Nuevo proyecto", easyClose = TRUE, size = "m",
         div(`data-max-mb` = as.numeric(get_setting(con, "max_mb")),
           fileInput(ns("file"), "Archivo de datos",
-                    accept = paste0(".", names(formatos_admitidos)),
+                    accept = c(paste0(".", names(formatos_admitidos)), ".caring"),
                     buttonLabel = "Elegir…", placeholder = "Ningún archivo")),
         p(class = "c-hint", "SPSS (.sav, .por), Stata (.dta), R (.rds, .RData), CSV, TSV, Excel (.xlsx, .xls) y SAS (.sas7bdat), ",
           "hasta ", tags$strong(fmt_num(as.numeric(get_setting(con, "max_mb")), 0), " MB"), ". ",
-          "No hace falta que los datos estén limpios: podrás recodificar y crear variables después."),
+          "No hace falta que los datos estén limpios: podrás recodificar y crear variables después. ",
+          "También puedes abrir un proyecto exportado de CARING (.caring)."),
         textInput(ns("name"), "Nombre del proyecto (opcional)"),
         div(class = "c-divider", "o"),
         actionButton(ns("demo"), "Usar los datos de demostración", class = "btn-outline-primary w-100"),
@@ -84,8 +85,11 @@ mod_projects_server <- function(id, con, state, on_open) {
     observeEvent(state$open_new_modal, { if (isTRUE(state$open_new_modal)) { state$open_new_modal <- FALSE; new_modal() } })
 
     create <- function(path, file_name, nombre) {
-      r <- withProgress(message = "Leyendo los datos…", value = 0.5,
-                        create_project(con, state$user, path, file_name, nombre))
+      r <- if (identical(tolower(tools::file_ext(file_name)), "caring")) {
+        withProgress(message = "Importando el proyecto…", value = 0.5, import_project(con, state$user, path, nombre))
+      } else {
+        withProgress(message = "Leyendo los datos…", value = 0.5, create_project(con, state$user, path, file_name, nombre))
+      }
       if (!r$ok) { showNotification(r$error, type = "error", duration = 10); return() }
       removeModal()
       refresh(refresh() + 1)

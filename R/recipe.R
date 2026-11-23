@@ -5,10 +5,10 @@
 
 #' Aplica una receta (lista de pasos) a un data.frame.
 #' @export
-apply_recipe <- function(d, recipe) {
+apply_recipe <- function(d, recipe, dir = NULL) {
   for (s in recipe) {
     sets <- attr(d, "mrsets", exact = TRUE)
-    d <- apply_step(d, s)
+    d <- apply_step(d, s, dir)
     # los conjuntos de respuesta múltiple viajan con los datos en todos los pasos
     if (is.null(attr(d, "mrsets", exact = TRUE)) && !is.null(sets) && !s$op %in% c("mrset", "mrset_drop", "drop")) {
       attr(d, "mrsets") <- sets
@@ -35,8 +35,44 @@ keep_label <- function(new, old, label = NULL) {
   new
 }
 
-apply_step <- function(d, s) {
+# dir: carpeta del proyecto (solo la necesitan los pasos que unen otro archivo).
+apply_step <- function(d, s, dir = NULL) {
   switch(s$op,
+    dedupe = dedupe_rows(d, s$by),
+    reverse = {
+      for (v in s$vars) {
+        need_var(d, v)
+        to <- if (isTRUE(s$replace)) v else paste0(v, s$suffix %||% "_inv")
+        if (!isTRUE(s$replace)) valid_new_name(d, to)
+        lim <- s$limits[[v]]
+        d[[to]] <- keep_label(reverse_var(d[[v]], lim$min, lim$max), d[[v]],
+                              if (!isTRUE(s$replace)) paste(var_label(d, v), "(invertida)"))
+      }
+      d
+    },
+    recode_many = {
+      for (v in s$vars) {
+        d <- apply_step(d, list(op = "recode", var = v, to = paste0(v, s$suffix %||% "_r"), groups = s$groups,
+                                others = s$others %||% "na", label = var_label(d, v)))
+      }
+      d
+    },
+    index = {
+      valid_new_name(d, s$to)
+      if (length(s$vars) < 2) stop("Un índice necesita al menos dos variables.")
+      x <- build_index(d, s$vars, s$method %||% "mean", s$min_valid)
+      attr(x, "label") <- if (nzchar(s$label %||% "")) s$label else paste("Índice:", paste(s$vars, collapse = ", "))
+      d[[s$to]] <- x
+      d
+    },
+    append = {
+      b <- read_annex(dir, s$file)
+      bind_cases(d, b, origin = s$origin, origin_labels = c(s$labels %||% c("Original", "Añadido")))
+    },
+    join = {
+      b <- read_annex(dir, s$file)
+      join_vars(d, b, s$by, s$by_other %||% s$by, s$vars)
+    },
     rename = {
       need_var(d, s$var); valid_new_name(d, s$to, allow = s$var)
       names(d)[names(d) == s$var] <- s$to
@@ -251,6 +287,13 @@ step_label <- function(s) {
   switch(s$op,
     rename = paste0("Renombrar ", s$var, " → ", s$to),
     label = paste0("Etiquetar ", s$var, ": «", s$label, "»"),
+    dedupe = if (length(s$by)) paste0("Quitar casos con ", paste(s$by, collapse = ", "), " repetido") else "Quitar casos repetidos",
+    reverse = paste0("Invertir ", paste(s$vars, collapse = ", "), if (isTRUE(s$replace)) "" else paste0(" → ", paste0(s$vars, s$suffix %||% "_inv", collapse = ", "))),
+    recode_many = paste0("Recodificar ", length(s$vars), " variables (", length(s$groups), " grupos) → ", paste0(s$vars, s$suffix %||% "_r", collapse = ", ")),
+    index = paste0("Crear índice ", s$to, " (", if (identical(s$method, "sum")) "suma" else "media", " de ", length(s$vars), " variables)"),
+    append = paste0("Añadir casos de ", s$source %||% "otro archivo"),
+    join = paste0("Añadir ", length(s$vars), if (length(s$vars) == 1) " variable de " else " variables de ",
+                  s$source %||% "otro archivo", " (clave ", s$by, ")"),
     labels = paste0("Poner etiqueta a ", length(s$labels), if (length(s$labels) == 1) " variable" else " variables"),
     catlabels = paste0("Cambiar etiquetas de categorías de ", s$var, " (", length(s$map), ")"),
     recode = paste0("Recodificar ", s$var, " → ", s$to, " (", length(s$groups), " grupos)"),
@@ -277,6 +320,25 @@ step_code <- function(s) {
   switch(s$op,
     rename = paste0("names(datos)[names(datos) == ", q(s$var), "] <- ", q(s$to)),
     label = paste0("attr(", col(s$var), ", \"label\") <- ", q(s$label)),
+    dedupe = if (length(s$by)) paste0("datos <- datos[!duplicated(datos[", qv(s$by), "]), ]")
+             else "datos <- datos[!duplicated(datos), ]",
+    reverse = vapply(s$vars, function(v) {
+      to <- if (isTRUE(s$replace)) v else paste0(v, s$suffix %||% "_inv")
+      lim <- s$limits[[v]]
+      if (!is.null(lim)) paste0(col(to), " <- (", lim$min, " + ", lim$max, ") - ", col(v))
+      else paste0(col(to), " <- factor(", col(v), ", levels = rev(levels(", col(v), ")))")
+    }, ""),
+    recode_many = unlist(lapply(s$vars, function(v) step_code(list(op = "recode", var = v, to = paste0(v, s$suffix %||% "_r"),
+                                                                    groups = s$groups, others = s$others)))),
+    index = c(paste0("items <- sapply(datos[", qv(s$vars), "], as.numeric)   # categóricas: 1, 2, 3…"),
+              paste0("validos <- rowSums(!is.na(items))"),
+              paste0(col(s$to), " <- ifelse(validos >= ", s$min_valid %||% ceiling(length(s$vars) / 2), ", rowMeans(items, na.rm = TRUE)",
+                     if (identical(s$method, "sum")) paste0(" * ", length(s$vars)) else "", ", NA)")),
+    append = c(paste0("otro <- caring2::read_any(", q(s$source %||% s$file), ")"),
+               "datos <- as.data.frame(data.table::rbindlist(list(datos, otro), fill = TRUE))"),
+    join = c(paste0("otro <- caring2::read_any(", q(s$source %||% s$file), ")"),
+             paste0("datos <- merge(datos, otro[c(", q(s$by_other %||% s$by), ", ", paste(vapply(s$vars, q, ""), collapse = ", "), ")], by.x = ",
+                    q(s$by), ", by.y = ", q(s$by_other %||% s$by), ", all.x = TRUE, sort = FALSE)")),
     labels = vapply(names(s$labels), function(v) paste0("attr(", col(v), ", \"label\") <- ", q(s$labels[[v]])), ""),
     catlabels = {
       m <- unlist(s$map)
