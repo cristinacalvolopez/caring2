@@ -190,12 +190,12 @@ save_html_copy <- function(src, title, dir = caring_config()$html_dir) {
 
 # Resultados guardados (para informes) --------------------------------------------------
 
-save_result <- function(dir, kind, title, object, png = NULL, html = NULL, source = "") {
+save_result <- function(dir, kind, title, object, png = NULL, html = NULL, source = "", data_hash = NULL) {
   id <- substr(gsub("-", "", new_id()), 1, 12)
   rdir <- file.path(dir, "resultados")
   dir.create(rdir, showWarnings = FALSE)
   res <- list(id = id, kind = kind, title = title, source = source, created = now_utc(),
-              object = object, html = if (!is.null(html)) basename(html))
+              object = object, html = if (!is.null(html)) basename(html), data_hash = data_hash)
   if (!is.null(png) && file.exists(png)) file.copy(png, file.path(rdir, paste0(id, ".png")), overwrite = TRUE)
   if (!is.null(html) && file.exists(html)) file.copy(html, file.path(rdir, paste0(id, ".html")), overwrite = TRUE)
   saveRDS(res, file.path(rdir, paste0(id, ".rds")))

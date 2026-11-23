@@ -81,7 +81,23 @@ mod_informes_server <- function(id, ctx) {
       editor_assets(proj$dir, list_results(proj$dir))
     })
 
+    # Antes de mostrar los resultados, se ponen al día con los datos actuales.
+    refresh <- function() {
+      req(proj$dir)
+      h <- recipe_hash(proj$recipe)
+      pend <- Filter(function(r) !identical(r$data_hash, h), list_results(proj$dir))
+      if (!length(pend)) return(invisible(FALSE))
+      d <- isolate(ctx$data())
+      withProgress(message = "Actualizando los resultados con los cambios de los datos…", value = 0, {
+        k <- 0
+        refresh_results(proj$dir, d, h, progress = function(t) { k <<- k + 1; incProgress(1 / length(pend), detail = t) })
+      })
+      proj$results_version <- proj$results_version + 1
+      invisible(TRUE)
+    }
+
     mount <- function() {
+      refresh()
       id <- input$doc
       if (is.null(id) || !nzchar(id)) { session$sendCustomMessage("caring-editor-load", list(el = "__none__")); return() }
       doc <- tryCatch(load_document(proj$dir, id), error = function(e) NULL)

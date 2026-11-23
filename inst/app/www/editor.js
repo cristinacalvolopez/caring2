@@ -245,6 +245,12 @@
       var r = E.assets.results[e.ref];
       if (!r) n.appendChild(h("div", { "class": "ed-missing", text: "Resultado borrado" }));
       else if (r.kind === "tabla" && r.html) n.appendChild(h("div", { "class": "ed-table", html: r.html }));
+      else if (interactive && r.fig && window.Plotly) {
+        // Gráfico interactivo (en las descargas se usa la imagen)
+        var pd = h("div", { "class": "ed-plotly", role: "img", "aria-label": r.title });
+        n.appendChild(pd);
+        E.plots.push({ node: pd, fig: r.fig, w: e.w - (e.style && e.style.bg ? 16 : 0), h: e.h - (e.style && e.style.bg ? 16 : 0) });
+      }
       else if (r.png) n.appendChild(h("img", { src: r.png, alt: r.title, draggable: "false" }));
       else n.appendChild(h("div", { "class": "ed-missing", text: r.title }));
       if (interactive && r && r.interactive) n.appendChild(h("span", { "class": "ed-badge", text: "Red interactiva" }));
@@ -297,6 +303,7 @@
     var avail = Math.max(200, stage.clientWidth - 48);
     E.scale = Math.min(1.2, avail / s.w);
     var holder = h("div", { "class": "ed-holder", style: "width:" + Math.round(s.w * E.scale) + "px;height:" + Math.round(s.h * E.scale) + "px" });
+    E.plots = [];
     var pn = pageNode(page(), true);
     pn.style.transform = "scale(" + E.scale + ")";
     pn.classList.add("ed-active");
@@ -304,6 +311,7 @@
     stage.appendChild(holder);
     stage.appendChild(h("div", { "class": "ed-pageinfo", text: (E.doc.type === "report" ? "Página " : "Diapositiva ") + (E.page + 1) + " de " + E.doc.pages.length }));
     bindPage(pn);
+    drawPlots();
     // Modo
     E.root.querySelectorAll(".ed-mode button").forEach(function (b) { b.classList.toggle("on", b.dataset.mode === E.doc.mode); });
     renderSide();
@@ -315,6 +323,9 @@
     var e = selected();
     if (!e) {
       side.appendChild(h("p", { "class": "ed-hint", text: "Selecciona un elemento para cambiar su aspecto. Doble clic en un texto para escribir." }));
+      side.appendChild(h("p", { "class": "ed-hint ed-mode-help", text: E.doc.mode === "blocks"
+        ? "Modo «Por bloques»: los elementos se colocan solos en una cuadrícula, uno debajo de otro y alineados. Al arrastrar uno, los demás se recolocan; al cambiar su ancho, se ajusta a las columnas. Cómodo para informes ordenados sin preocuparse de alinear."
+        : "Modo «Lienzo libre»: colocas y cambias de tamaño cada elemento donde quieras, como en PowerPoint o Canva. Las guías te ayudan a centrarlo (mantén Alt para moverlo sin guías)." }));
       var p = page();
       side.appendChild(h("div", { "class": "ed-label", text: "Fondo de la página" }));
       side.appendChild(swatches(p.bg || "#FFFFFF", function (c) { p.bg = c; commit(); render(); }));
@@ -351,6 +362,7 @@
       var r = E.assets.results[e.ref];
       side.appendChild(h("div", { "class": "ed-label", text: r ? r.title : "Resultado" }));
       if (r && r.interactive) side.appendChild(h("p", { "class": "ed-hint", text: "En HTML la red se exporta interactiva; en PowerPoint, Word y PDF, como imagen." }));
+      if (r && r.fig) side.appendChild(h("p", { "class": "ed-hint", text: "Aquí el gráfico es interactivo (pasa el ratón por encima). Al descargar el informe se incluye como imagen." }));
     }
     side.appendChild(h("div", { "class": "ed-label", text: "Posición y tamaño" }));
     var pos = h("div", { "class": "ed-pos" });
@@ -401,6 +413,19 @@
     E.sel = null;
     if (E.doc.mode === "blocks") pack(p);
     commit(); render();
+  }
+
+  // Gráficos interactivos de la página activa (plotly ya está cargado por Explorar)
+  function drawPlots() {
+    (E.plots || []).forEach(function (p) {
+      var fig;
+      try { fig = typeof p.fig === "string" ? JSON.parse(p.fig) : p.fig; } catch (err) { return; }
+      var lay = Object.assign({}, fig.layout || {}, { width: Math.max(80, p.w), height: Math.max(60, p.h), autosize: false, dragmode: false });
+      try {
+        window.Plotly.newPlot(p.node, fig.data || [], lay,
+          { displayModeBar: false, responsive: false, scrollZoom: false, doubleClick: false, locale: "es", showTips: false });
+      } catch (err) { /* si falla, el elemento queda vacío pero el informe sigue funcionando */ }
+    });
   }
 
   // Interacción con el ratón ----------------------------------------------------------------
@@ -519,9 +544,9 @@
     }));
     var toolbar = h("div", { "class": "ed-toolbar" }, [
       h("div", { "class": "ed-mode", role: "radiogroup", "aria-label": "Modo de edición" }, [
-        h("button", { type: "button", "data-mode": "free", title: "Mueve y redimensiona los elementos donde quieras", text: "Lienzo libre",
+        h("button", { type: "button", "data-mode": "free", title: "Colocas cada elemento donde quieras, como en PowerPoint o Canva", text: "Lienzo libre",
           onclick: function () { E.doc.mode = "free"; commit(); render(); } }),
-        h("button", { type: "button", "data-mode": "blocks", title: "Los elementos se colocan solos en una cuadrícula", text: "Por bloques",
+        h("button", { type: "button", "data-mode": "blocks", title: "Los elementos se colocan y alinean solos en una cuadrícula, uno debajo de otro", text: "Por bloques",
           onclick: function () { E.doc.mode = "blocks"; packAll(); commit(); render(); } })
       ]),
       h("span", { "class": "ed-sep" }),

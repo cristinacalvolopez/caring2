@@ -132,3 +132,67 @@ save_plotly_html <- function(w, file, title = "Gráfico") {
   writeLines(inline_html(tmp), file, useBytes = TRUE)
   invisible(file)
 }
+
+# Figura plotly (datos y diseño, sin la librería) para mostrar el gráfico interactivo en
+# los informes dentro de CARING. Se guarda como texto JSON con el resultado (unos KB).
+plotly_figure_json <- function(w) {
+  b <- suppressWarnings(plotly::plotly_build(w))
+  lay <- b$x$layout
+  lay$width <- NULL; lay$height <- NULL
+  lay$autosize <- TRUE
+  lay$dragmode <- FALSE                     # en el editor, arrastrar mueve el elemento
+  lay$margin <- list(t = 20, r = 16, b = 50, l = 56)
+  as.character(plotly:::to_JSON(list(data = b$x$data, layout = lay)))
+}
+
+# Resultados al día con los datos ---------------------------------------------------------------
+# Cada resultado guarda su receta (variables y opciones) y la «huella» de los cambios de
+# datos con los que se hizo. Si los datos cambian (etiquetas, recodificaciones, filtros…),
+# se rehace: tabla, textos, imagen, versión interactiva y, en las redes, la página HTML.
+# Los informes y presentaciones apuntan a los resultados, así que se actualizan solos.
+# Si un resultado ya no se puede rehacer (por ejemplo, se borró una variable), se deja como estaba.
+recipe_hash <- function(recipe) digest::digest(recipe %||% list(), algo = "md5")
+
+refresh_results <- function(dir, d, hash, progress = NULL) {
+  rs <- list_results(dir)
+  pend <- Filter(function(r) !identical(r$data_hash, hash), rs)
+  n <- 0
+  for (r in pend) {
+    full <- load_result(dir, r$id)
+    if (is.null(full)) next
+    spec <- full$object$spec
+    if (!is.null(progress)) progress(r$title)
+    rdir <- file.path(dir, "resultados")
+    ok <- tryCatch({
+      if (is.null(spec)) stop("sin receta")
+      if (full$kind %in% c("grafico", "tabla")) {
+        x <- explore_from_spec(d, spec)
+        if (!is.null(x$error)) stop(x$error)
+        full$title <- x$title
+        full$object$table <- x$table; full$object$subtitle <- x$subtitle; full$object$stats <- x$stats
+        png <- file.path(rdir, paste0(r$id, ".png"))
+        if (full$kind == "grafico" && !is.null(x$plot)) {
+          save_plot_png(x$plot, png)
+          full$object$fig <- tryCatch(plotly_figure_json(to_plotly(x)), error = function(e) "")
+        } else if (full$kind == "tabla") {
+          save_table_png(x$table, x$title, png)
+        }
+      } else if (identical(full$kind, "red")) {
+        if (isTRUE(spec$auto_title)) spec$title <- default_net_title(d, spec)
+        net <- suppressWarnings(suppressMessages(net_build(d, spec)))
+        h <- file.path(rdir, paste0(r$id, ".html"))
+        out <- net_render(net, h, file.path(rdir, paste0(r$id, ".png")))
+        full$html <- basename(h)
+        full$title <- spec$title %||% full$title
+        full$object$spec <- spec
+        full$object$summary <- net_summary(net)
+      }
+      TRUE
+    }, error = function(e) FALSE)
+    if (ok) n <- n + 1
+    full$data_hash <- hash
+    if (identical(full$kind, "grafico") && is.null(full$object$fig)) full$object$fig <- ""
+    saveRDS(full, file.path(rdir, paste0(r$id, ".rds")))
+  }
+  invisible(n)
+}

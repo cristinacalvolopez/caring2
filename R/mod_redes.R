@@ -223,7 +223,7 @@ mod_redes_server <- function(id, ctx) {
     observeEvent(input$go, {
       s <- spec()
       d <- data()
-      if (!nzchar(s$title %||% "")) s$title <- default_net_title(d, s)
+      if (!nzchar(s$title %||% "")) { s$title <- default_net_title(d, s); s$auto_title <- TRUE }
       current$error <- NULL
       res <- withProgress(message = "Calculando la red…", value = 0.3, tryCatch({
         net <- suppressWarnings(net_build(d, s))
@@ -308,7 +308,7 @@ mod_redes_server <- function(id, ctx) {
       withProgress(message = "Guardando la red y su imagen…", value = 0.4, {
         png <- tempfile(fileext = ".png")
         r <- net_render(current$net, tempfile(fileext = ".html"), png)
-        save_result(ctx$proj$dir, "red", current$title,
+        save_result(ctx$proj$dir, "red", current$title, data_hash = recipe_hash(ctx$proj$recipe),
                     list(spec = current$spec, summary = net_summary(current$net)),
                     png = r$png, html = current$html, source = "Redes")
         unlink(c(png, r$html))

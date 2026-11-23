@@ -335,3 +335,7 @@ pre.c-code { background: #F5F5F5; border: 1px solid var(--c-border-2); border-ra
 /* Selector Interactivo / Estático (más compacto) */
 .c-seg-sm .form-group, .c-seg-sm .shiny-input-container { margin-bottom: 0; width: auto; }
 .c-seg-sm .radio-inline span { padding: 5px 12px; font-size: 14px; }
+
+/* Gráficos interactivos dentro del editor de informes */
+.ed-plotly { width: 100%; height: 100%; overflow: hidden; background: #FFFFFF; }
+.ed-plotly .modebar-container { display: none; }

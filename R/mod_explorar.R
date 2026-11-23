@@ -202,7 +202,9 @@ mod_explorar_server <- function(id, ctx) {
       # Se guarda la receta del resultado (variables y opciones), no el objeto gráfico:
       # ocupa unos pocos KB y permite volver a dibujarlo (p. ej., con otros colores).
       obj <- list(table = r$table, subtitle = r$subtitle, stats = r$stats, spec = explore_spec())
-      save_result(ctx$proj$dir, kind, r$title, obj, png = png, source = "Explorar")
+      # versión interactiva para verlo así en los informes (las descargas usan la imagen)
+      if (kind == "grafico") obj$fig <- tryCatch(plotly_figure_json(to_plotly(r)), error = function(e) "")
+      save_result(ctx$proj$dir, kind, r$title, obj, png = png, source = "Explorar", data_hash = recipe_hash(ctx$proj$recipe))
       ctx$results_changed()
       showNotification(paste(if (kind == "grafico") "Gráfico" else "Tabla", "añadido a los resultados del proyecto. Lo encontrarás en Informes."),
                        type = "message")

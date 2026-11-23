@@ -84,8 +84,10 @@ editor_assets <- function(dir, results) {
     full <- load_result(dir, r$id)
     tab_html <- if (identical(r$kind, "tabla") && !is.null(full$object$table))
       as.character(html_table(full$object$table)) else NULL
+    fig <- full$object$fig
     list(id = r$id, kind = r$kind, title = r$title, source = r$source,
          png = if (file.exists(png)) data_uri(png, "image/png"), html = tab_html,
+         fig = if (identical(r$kind, "grafico") && is.character(fig) && nzchar(fig)) fig,
          interactive = identical(r$kind, "red"))
   })
   names(res) <- vapply(results, `[[`, "", "id")
@@ -103,6 +105,7 @@ css_color <- function(x, default = "#000000") if (is.null(x) || !nzchar(x)) defa
 export_html <- function(dir, doc, file, present = FALSE, static = FALSE) {
   sz <- page_size(doc$type)
   nets <- list()
+  figs <- list()                     # gráficos interactivos (solo en el modo Presentar)
   slides <- doc$type == "slides"
   page_html <- function(p, i) {
     els <- lapply(p$elements, function(e) {
@@ -134,6 +137,9 @@ export_html <- function(dir, doc, file, present = FALSE, static = FALSE) {
             } else img
           } else if (identical(r$kind, "tabla")) {
             paste0('<div class="tbl">', as.character(html_table(r$object$table)), "</div>")
+          } else if (present && !static && is.character(r$object$fig) && nzchar(r$object$fig)) {
+            figs[[r$id]] <<- r$object$fig
+            sprintf('<div class="plt" data-fig="%s" role="img" aria-label="%s"></div>', r$id, htmltools::htmlEscape(r$title))
           } else {
             png <- file.path(dir, "resultados", paste0(r$id, ".png"))
             if (file.exists(png)) sprintf('<img src="%s" style="width:100%%;height:100%%;object-fit:contain">', data_uri(png, "image/png")) else ""
@@ -160,6 +166,7 @@ body{margin:0;background:%s;font-family:Roboto,Arial,sans-serif}
 .el{position:absolute;overflow:hidden}
 .t{width:100%%;height:100%%;line-height:1.3;white-space:normal;box-sizing:border-box;padding:2px}
 .tbl{width:100%%;height:100%%;overflow:auto;font-size:12px}
+.plt{width:100%%;height:100%%}
 .c-table{width:100%%;border-collapse:collapse}.c-table th{background:#2F7BEE;color:#fff;padding:4px 8px;text-align:left}
 .c-table td{padding:4px 8px;border-top:1px solid #E3E3E3}.c-table .num{text-align:right}
 .net-open{position:absolute;right:6px;bottom:6px;background:#2F7BEE;color:#fff;border:0;border-radius:5px;padding:6px 10px;font:inherit;font-size:13px;cursor:pointer}
@@ -179,7 +186,7 @@ var ps=document.querySelectorAll(".page"),i=0,W=%d,H=%d;
 function fit(){var s=Math.min(innerWidth/W,innerHeight/H);ps.forEach(function(p){p.style.transform="translate("+((innerWidth-W*s)/2)+"px,"+((innerHeight-H*s)/2)+"px) scale("+s+")"})}
 function show(n){i=Math.max(0,Math.min(ps.length-1,n));ps.forEach(function(p,k){p.classList.toggle("on",k===i)})}
 addEventListener("keydown",function(e){if(["ArrowRight","PageDown"," "].indexOf(e.key)>=0)show(i+1);if(["ArrowLeft","PageUp"].indexOf(e.key)>=0)show(i-1)});
-addEventListener("click",function(e){if(!e.target.closest("#netbox")&&!e.target.closest(".net-open"))show(i+1)});
+addEventListener("click",function(e){if(!e.target.closest("#netbox")&&!e.target.closest(".net-open")&&!e.target.closest(".plt"))show(i+1)});
 addEventListener("resize",fit);fit();show(0);
 </script>', sz["w"], sz["h"]) else ""
   net_js <- if (length(nets)) paste0(
@@ -188,9 +195,19 @@ addEventListener("resize",fit);fit();show(0);
     'function openNet(id,e){e.stopPropagation();var b=document.getElementById("netbox");b.querySelector("iframe").srcdoc=NETS[id];b.classList.add("on")}',
     'function closeNet(e){e.stopPropagation();var b=document.getElementById("netbox");b.classList.remove("on");b.querySelector("iframe").srcdoc=""}',
     '</script>') else ""
+  plt_js <- if (length(figs)) {
+    lib <- list.files(system.file("htmlwidgets/lib/plotlyjs", package = "plotly"), pattern = "min\\.js$", full.names = TRUE)[1]
+    loc <- system.file("htmlwidgets/lib/plotlyjs/locales/es.js", package = "plotly")
+    paste0('<script>', gsub("</script", "<\\/script", paste(readLines(lib, warn = FALSE), collapse = "\n"), fixed = TRUE), '</script>',
+           if (nzchar(loc)) paste0('<script>', paste(readLines(loc, warn = FALSE), collapse = "\n"), '</script>') else "",
+           '<script>var FIGS={', paste0('"', names(figs), '":', unlist(figs), collapse = ","), '};',
+           'document.querySelectorAll(".plt").forEach(function(d){var f=FIGS[d.dataset.fig];if(!f)return;',
+           'var el=d.parentNode;var L=Object.assign({},f.layout,{width:el.clientWidth,height:el.clientHeight,autosize:false});',
+           'Plotly.newPlot(d,f.data,L,{displayModeBar:false,locale:"es",responsive:false})});</script>')
+  } else ""
   html <- paste0('<!DOCTYPE html><html lang="es"><head><meta charset="utf-8"><title>',
                  htmltools::htmlEscape(doc$title), '</title><style>', css, '</style></head><body>',
-                 paste(pages, collapse = "\n"), net_js, js, '</body></html>')
+                 paste(pages, collapse = "\n"), net_js, plt_js, js, '</body></html>')
   writeLines(html, file, useBytes = TRUE)
   invisible(file)
 }
