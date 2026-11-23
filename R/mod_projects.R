@@ -18,7 +18,7 @@ mod_projects_ui <- function(id, user) {
     div(class = "c-main overlap",
       div(class = "c-toolbar",
         div(style = "flex:1 1 260px", textInput(ns("search"), NULL, placeholder = "Buscar proyectos")),
-        seg_radio(ns("filter"), c("Todos" = "todos", "Míos" = "mios", "Compartidos conmigo" = "compartidos")),
+        seg_radio(ns("filter"), c("Todos" = "todos", "Míos" = "mios", "Compartidos conmigo" = "compartidos", "Papelera" = "papelera")),
         div(style = "width:210px", selectInput(ns("sort"), NULL,
           c("Última modificación" = "mod", "Nombre" = "nombre", "Fecha de creación" = "creado")))
       ),
@@ -39,6 +39,7 @@ mod_projects_server <- function(id, con, state, on_open) {
     })
 
     output$grid <- renderUI({
+      if (identical(input$filter, "papelera")) return(trash_grid())
       p <- projects()
       q <- tolower(trimws(input$search %||% ""))
       if (nzchar(q)) p <- p[grepl(q, tolower(p$nombre), fixed = TRUE) | grepl(q, tolower(p$archivo), fixed = TRUE), ]
@@ -136,9 +137,10 @@ mod_projects_server <- function(id, con, state, on_open) {
         delete = {
           if (perm != "propietario") return(showNotification("Solo el propietario puede borrar el proyecto.", type = "error"))
           session$userData$target <- pid
-          showModal(modalDialog(title = "Borrar proyecto", easyClose = TRUE,
-            p("Se borrarán los datos, redes, resultados e informes de «", get_project(con, pid)$nombre, "». No se puede deshacer."),
-            footer = tagList(modalButton("Cancelar"), actionButton(ns("delete_ok"), "Borrar", class = "btn-danger-c"))))
+          showModal(modalDialog(title = "Mover a la papelera", easyClose = TRUE,
+            p("«", get_project(con, pid)$nombre, "» irá a la papelera. Podrás recuperarlo durante ", papelera_dias,
+              " días desde «Papelera»; después se borrará del todo. Mientras esté allí, nadie podrá abrirlo."),
+            footer = tagList(modalButton("Cancelar"), actionButton(ns("delete_ok"), "Mover a la papelera", class = "btn-danger-c"))))
         },
         leave = {
           unshare_project(con, pid, state$user$id)
@@ -156,8 +158,52 @@ mod_projects_server <- function(id, con, state, on_open) {
     })
 
     observeEvent(input$delete_ok, {
-      safely(delete_project(con, session$userData$target))
+      pid <- session$userData$target
+      if (!identical(project_access(con, state$user$id, pid), "propietario")) return(removeModal())
+      safely(trash_project(con, pid))
       removeModal()
+      refresh(refresh() + 1)
+      showNotification("Proyecto movido a la papelera.", type = "message")
+    })
+
+    # Papelera ------------------------------------------------------------------------------
+    trash_grid <- function() {
+      refresh(); state$projects_version
+      t <- list_trash(con, state$user$id)
+      if (!nrow(t)) return(div(class = "c-empty", style = "padding:50px 10px",
+        tags$h2("La papelera está vacía"),
+        p("Los proyectos que borres se guardan aquí ", papelera_dias, " días antes de eliminarse del todo.")))
+      act <- function(id, a) sprintf("caringAction('%s', '%s', '%s', event)", ns("trash"), id, a)
+      tagList(
+        p(class = "c-hint", "Se borran solos a los ", papelera_dias, " días. Mientras están aquí siguen ocupando espacio de tu cuenta."),
+        div(class = "c-trash-list", lapply(seq_len(nrow(t)), function(i) div(class = "c-trash-item",
+          div(tags$strong(t$nombre[i]), div(class = "small-2", paste0(t$archivo[i], " · borrado ", time_ago(t$borrado[i]),
+              " · se elimina del todo en ", t$quedan[i], if (t$quedan[i] == 1) " día" else " días"))),
+          div(class = "d-flex gap-2",
+            tags$button(class = "btn btn-outline-primary btn-sm", onclick = act(t$id[i], "restore"), "Recuperar"),
+            tags$button(class = "btn btn-danger-c btn-sm", onclick = act(t$id[i], "purge"), "Borrar del todo"))))))
+    }
+    observeEvent(input$trash, {
+      a <- input$trash
+      own <- db_get(con, "SELECT id FROM projects WHERE id = ? AND owner_id = ? AND borrado IS NOT NULL", list(a$id, state$user$id))
+      if (!nrow(own)) return()
+      if (a$action == "restore") {
+        restore_project(con, a$id)
+        refresh(refresh() + 1)
+        showNotification("Proyecto recuperado.", type = "message")
+      } else if (a$action == "purge") {
+        session$userData$purge <- a$id
+        showModal(modalDialog(title = "Borrar del todo", easyClose = TRUE,
+          p("Se eliminarán para siempre los datos, resultados e informes de «", get_project(con, a$id)$nombre, "». No se puede deshacer."),
+          footer = tagList(modalButton("Cancelar"), actionButton(ns("purge_ok"), "Borrar del todo", class = "btn-danger-c"))))
+      }
+    })
+    observeEvent(input$purge_ok, {
+      pid <- session$userData$purge
+      own <- db_get(con, "SELECT id FROM projects WHERE id = ? AND owner_id = ? AND borrado IS NOT NULL", list(pid, state$user$id))
+      removeModal()
+      if (!nrow(own)) return()
+      safely(delete_project(con, pid))
       refresh(refresh() + 1)
     })
   })

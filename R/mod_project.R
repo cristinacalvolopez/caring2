@@ -21,6 +21,7 @@ mod_project_ui <- function(id) {
             tags$li(tags$hr(class = "dropdown-divider")),
             tags$li(downloadLink(ns("dl_project"), "Proyecto completo (.caring)", class = "dropdown-item",
                                  title = "Datos, cambios, resultados e informes, para abrirlo en otro CARING")))),
+        uiOutput(ns("comments_btn"), inline = TRUE),
         uiOutput(ns("share_btn"), inline = TRUE))
     ),
     bslib::navset_hidden(id = ns("panels"),
@@ -32,7 +33,7 @@ mod_project_ui <- function(id) {
   )
 }
 
-mod_project_server <- function(id, con, state) {
+mod_project_server <- function(id, con, state, base_url = reactive("")) {
   moduleServer(id, function(input, output, session) {
     ns <- session$ns
     proj <- reactiveValues(id = NULL, dir = NULL, permiso = NULL, info = NULL,
@@ -101,7 +102,7 @@ mod_project_server <- function(id, con, state) {
       proj$saved <- Sys.time()
     }
 
-    ctx <- list(con = con, state = state, proj = proj, data = data, add_step = add_step,
+    ctx <- list(con = con, state = state, proj = proj, data = data, add_step = add_step, base_url = base_url,
                 set_recipe = set_recipe, results_changed = results_changed,
                 can_edit = reactive(can_edit(proj$permiso)))
 
@@ -138,6 +139,49 @@ mod_project_server <- function(id, con, state) {
     })
 
     observeEvent(input$share, state$share_project <- list(id = proj$id, t = Sys.time()))
+
+    # Comentarios (solo en proyectos compartidos) ------------------------------------------------
+    comments_v <- reactiveVal(0)
+    output$comments_btn <- renderUI({
+      comments_v(); proj$version
+      req(proj$id, state$user)
+      invalidateLater(60000)
+      if (!project_is_shared(con, proj$id)) return(NULL)
+      n <- unread_comments(con, proj$id, state$user$id)
+      actionButton(ns("comments"), tagList("Comentarios", if (n > 0) span(class = "c-badge", `aria-label` = paste(n, "sin leer"), n)),
+                   class = "btn-light-c")
+    })
+    comments_modal <- function() {
+      cs <- list_comments(con, proj$id)
+      owner <- identical(proj$permiso, "propietario")
+      showModal(modalDialog(title = "Comentarios del proyecto", easyClose = TRUE, size = "l",
+        p(class = "c-hint", "Los ven todas las personas con acceso al proyecto."),
+        div(class = "c-comments",
+          if (!nrow(cs)) p(class = "c-hint", "Todavía no hay comentarios.")
+          else lapply(seq_len(nrow(cs)), function(i) div(class = paste("c-comment", if (identical(cs$user_id[i], state$user$id)) "mine"),
+            div(class = "c-comment-head", tags$strong(cs$autor[i]), span(class = "small-2", time_ago(cs$creado[i])),
+              if (owner || identical(cs$user_id[i], state$user$id))
+                tags$button(class = "btn-link-c small-2", type = "button", `aria-label` = "Borrar comentario",
+                            onclick = sprintf("caringAction('%s', '%s', 'del', event)", ns("comment_act"), cs$id[i]), "Borrar")),
+            div(class = "c-comment-text", cs$texto[i])))),
+        textAreaInput(ns("comment_text"), "Nuevo comentario", rows = 3, width = "100%",
+                      placeholder = "Por ejemplo: he recodificado la edad en tramos; revisad la red de la diapositiva 3."),
+        footer = tagList(modalButton("Cerrar"), actionButton(ns("comment_send"), "Publicar", class = "btn-primary"))))
+      mark_comments_read(con, proj$id, state$user$id)
+      comments_v(comments_v() + 1)
+    }
+    observeEvent(input$comments, comments_modal())
+    observeEvent(input$comment_send, {
+      req(project_access(con, state$user$id, proj$id))
+      r <- add_comment(con, proj$id, state$user$id, input$comment_text)
+      if (!r$ok) return(showNotification(r$error, type = "error"))
+      comments_modal()
+    })
+    observeEvent(input$comment_act, {
+      req(project_access(con, state$user$id, proj$id))
+      delete_comment(con, input$comment_act$id, state$user$id, is_owner = identical(proj$permiso, "propietario"))
+      comments_modal()
+    })
 
     observeEvent(input$code, {
       code <- recipe_to_code(proj$recipe, proj$info$archivo)

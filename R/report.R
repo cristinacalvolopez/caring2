@@ -107,7 +107,7 @@ editor_assets <- function(dir, results) {
 css_color <- function(x, default = "#000000") if (is.null(x) || !nzchar(x)) default else x
 
 # HTML autocontenido. Las redes se incluyen interactivas.
-export_html <- function(dir, doc, file, present = FALSE, static = FALSE) {
+export_html <- function(dir, doc, file, present = FALSE, static = FALSE, interactive = present) {
   sz <- page_size(doc$type)
   nets <- list()
   figs <- list()                     # gráficos interactivos (solo en el modo Presentar)
@@ -143,7 +143,7 @@ export_html <- function(dir, doc, file, present = FALSE, static = FALSE) {
           } else if (identical(r$kind, "tabla")) {
             tc <- table_colors(e$style$palette)
             paste0('<div class="tbl" style="--th:', tc$head, ';--thc:', tc$head_text, '">', as.character(html_table(r$object$table)), "</div>")
-          } else if (present && !static && is.character(r$object$fig) && nzchar(r$object$fig)) {
+          } else if (interactive && !static && is.character(r$object$fig) && nzchar(r$object$fig)) {
             pal <- e$style$palette
             fg <- if (!is.null(pal) && is.character(r$object$figs[[pal]]) && nzchar(r$object$figs[[pal]])) r$object$figs[[pal]] else r$object$fig
             key <- paste0(r$id, "_", pal %||% "netcoin")

@@ -60,10 +60,34 @@ db_migrate <- function(con) {
        user_id TEXT,
        accion TEXT NOT NULL,
        detalle TEXT,
-       fecha TEXT NOT NULL)"
+       fecha TEXT NOT NULL)",
+    "CREATE TABLE IF NOT EXISTS comments (
+       id TEXT PRIMARY KEY,
+       project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+       user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+       texto TEXT NOT NULL,
+       creado TEXT NOT NULL)",
+    "CREATE TABLE IF NOT EXISTS comment_reads (
+       project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+       user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+       visto TEXT NOT NULL,
+       PRIMARY KEY (project_id, user_id))",
+    "CREATE TABLE IF NOT EXISTS public_links (
+       token_hash TEXT PRIMARY KEY,
+       project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+       doc_id TEXT NOT NULL,
+       creado TEXT NOT NULL,
+       creado_por TEXT REFERENCES users(id) ON DELETE SET NULL,
+       revocado TEXT)"
   )
   for (s in stmts) DBI::dbExecute(con, s)
+  # columnas añadidas después (bases de datos creadas con versiones anteriores)
+  add_column(con, "projects", "borrado", "TEXT")       # fecha en que se movió a la papelera
   invisible(TRUE)
+}
+
+add_column <- function(con, table, column, type) {
+  if (!column %in% DBI::dbListFields(con, table)) DBI::dbExecute(con, paste("ALTER TABLE", table, "ADD COLUMN", column, type))
 }
 
 now_utc <- function(offset_secs = 0) {

@@ -16,7 +16,10 @@ mod_informes_ui <- function(id) {
           tags$button(class = "btn btn-light-c dropdown-toggle", type = "button", `data-bs-toggle` = "dropdown", "Documento"),
           tags$ul(class = "dropdown-menu",
             tags$li(actionLink(ns("rename_doc"), "Renombrar", class = "dropdown-item")),
-            tags$li(actionLink(ns("delete_doc"), "Borrar", class = "dropdown-item text-danger")))),
+            tags$li(actionLink(ns("public_link"), "Enlace público (solo lectura)", class = "dropdown-item")),
+            tags$li(tags$hr(class = "dropdown-divider")),
+            tags$li(actionLink(ns("delete_doc"), "Mover a la papelera", class = "dropdown-item text-danger")),
+            tags$li(actionLink(ns("doc_trash"), "Papelera de documentos", class = "dropdown-item")))),
         actionButton(ns("style"), "Estilo", class = "btn-light-c mb-3"),
         actionButton(ns("present"), "Presentar", class = "btn-light-c mb-3"),
         div(class = "dropdown mb-3",
@@ -107,8 +110,14 @@ mod_informes_server <- function(id, ctx) {
       }
       id <- input$doc
       if (is.null(id) || !nzchar(id)) { session$sendCustomMessage("caring-editor-load", list(el = "__none__")); return() }
-      doc <- tryCatch(load_document(proj$dir, id), error = function(e) NULL)
-      req(doc)
+      doc <- if (file.exists(file.path(proj$dir, "informes", paste0(id, ".json")))) {
+        tryCatch(load_document(proj$dir, id), error = function(e) NULL)
+      }
+      if (is.null(doc)) {                      # documento borrado o movido a la papelera
+        current(NULL)
+        session$sendCustomMessage("caring-editor-load", list(el = "__none__"))
+        return(invisible())
+      }
       current(doc)
       th <- doc$theme %||% "clasico"
       session$sendCustomMessage("caring-editor-load", list(
@@ -134,6 +143,8 @@ mod_informes_server <- function(id, ctx) {
       if (!ctx$can_edit()) return()
       doc <- tryCatch(jsonlite::fromJSON(input$doc_json, simplifyVector = FALSE), error = function(e) NULL)
       if (is.null(doc) || is.null(doc$id) || !grepl("^[a-f0-9]+$", doc$id) || !is.list(doc$pages)) return()
+      # un documento que está en la papelera no se vuelve a guardar (el editor puede enviar su última copia)
+      if (file.exists(file.path(doc_trash_dir(proj$dir), paste0(doc$id, ".json")))) return()
       th <- pending_theme()
       if (!is.null(th)) {
         pending_theme(NULL)
@@ -217,16 +228,96 @@ mod_informes_server <- function(id, ctx) {
 
     observeEvent(input$delete_doc, {
       req(current())
-      showModal(modalDialog(title = "Borrar documento", easyClose = TRUE,
-        p("Se borrará «", current()$title, "». Los resultados del proyecto no se borran."),
-        footer = tagList(modalButton("Cancelar"), actionButton(ns("delete_ok"), "Borrar", class = "btn-danger-c"))))
+      showModal(modalDialog(title = "Mover a la papelera", easyClose = TRUE,
+        p("«", current()$title, "» irá a la papelera de documentos, donde podrás recuperarlo durante ", papelera_dias,
+          " días. Sus enlaces públicos dejarán de funcionar. Los resultados del proyecto no se borran."),
+        footer = tagList(modalButton("Cancelar"), actionButton(ns("delete_ok"), "Mover a la papelera", class = "btn-danger-c"))))
     })
     observeEvent(input$delete_ok, {
-      delete_document(proj$dir, current()$id)
+      if (!ctx$can_edit()) return(removeModal())
+      revoke_doc_links(ctx$con, proj$id, current()$id)
+      trash_document(proj$dir, current()$id)
       current(NULL)
       removeModal()
       docs_version(docs_version() + 1)
-      session$onFlushed(function() isolate(mount()), once = TRUE)
+      session$onFlushed(function() try(isolate(mount()), silent = TRUE), once = TRUE)
+    })
+
+    # Papelera de documentos -----------------------------------------------------------------
+    observeEvent(input$doc_trash, {
+      t <- list_trash_documents(proj$dir)
+      act <- function(id, a) sprintf("caringAction('%s', '%s', '%s', event)", ns("dtrash"), id, a)
+      showModal(modalDialog(title = "Papelera de documentos", easyClose = TRUE, size = "l",
+        if (!nrow(t)) p(class = "c-hint", "No hay documentos en la papelera.")
+        else tagList(
+          p(class = "c-hint", "Los documentos borrados se guardan ", papelera_dias, " días."),
+          div(class = "c-trash-list", lapply(seq_len(nrow(t)), function(i) div(class = "c-trash-item",
+            div(tags$strong(t$title[i]), div(class = "small-2", paste0(if (t$type[i] == "report") "Informe" else "Diapositivas",
+                " · borrado ", time_ago(t$borrado[i]), " · quedan ", t$quedan[i], " días"))),
+            if (ctx$can_edit()) div(class = "d-flex gap-2",
+              tags$button(class = "btn btn-outline-primary btn-sm", onclick = act(t$id[i], "restore"), "Recuperar"),
+              tags$button(class = "btn btn-danger-c btn-sm", onclick = act(t$id[i], "purge"), "Borrar del todo")))))),
+        footer = modalButton("Cerrar")))
+    })
+    observeEvent(input$dtrash, {
+      a <- input$dtrash
+      if (!ctx$can_edit() || !grepl("^[a-f0-9]+$", a$id %||% "")) return()
+      if (a$action == "restore") {
+        restore_document(proj$dir, a$id)
+        want_doc(a$id)
+        showNotification("Documento recuperado.", type = "message")
+      } else {
+        purge_document(proj$dir, a$id)
+      }
+      removeModal()
+      docs_version(docs_version() + 1)
+      if (a$action == "restore") session$onFlushed(function() try(isolate(mount()), silent = TRUE), once = TRUE)
+    })
+
+    # Enlace público de solo lectura ------------------------------------------------------------
+    link_modal <- function(nuevo = NULL) {
+      doc <- current()
+      req(doc)
+      links <- list_public_links(ctx$con, proj$id, doc$id)
+      showModal(modalDialog(title = paste("Enlace público ·", doc$title), easyClose = TRUE, size = "l",
+        p(class = "c-hint", "Cualquiera que tenga el enlace podrá ver este documento tal como está ahora (y con los cambios que hagas después), ",
+          "sin cuenta y sin poder modificar nada. Los datos del proyecto no se muestran. Puedes anular el enlace cuando quieras."),
+        if (!is.null(nuevo)) div(class = "c-link-box",
+          tags$label(`for` = ns("link_url"), "Enlace (cópialo ahora: por seguridad no se vuelve a mostrar)"),
+          tags$input(id = ns("link_url"), class = "form-control", readonly = NA, value = nuevo, onclick = "this.select()"),
+          tags$button(class = "btn btn-primary btn-sm mt-2", type = "button",
+                      onclick = sprintf("var i=document.getElementById('%s'); i.select(); try{navigator.clipboard.writeText(i.value)}catch(e){document.execCommand('copy')}; this.textContent='Copiado';", ns("link_url")),
+                      "Copiar enlace")),
+        tags$h3(class = "mt-3", style = "font-size:16px", "Enlaces activos"),
+        if (!nrow(links)) p(class = "c-hint", "Ninguno.")
+        else div(class = "c-trash-list", lapply(seq_len(nrow(links)), function(i) div(class = "c-trash-item",
+          span(paste("Creado", time_ago(links$creado[i]))),
+          tags$button(class = "btn btn-danger-c btn-sm",
+                      onclick = sprintf("caringAction('%s', '%s', 'revoke', event)", ns("link_act"), substr(links$token_hash[i], 1, 16)),
+                      "Anular")))),
+        footer = tagList(modalButton("Cerrar"),
+                         if (ctx$can_edit()) actionButton(ns("link_new"), "Crear un enlace nuevo", class = "btn-primary"))))
+    }
+    observeEvent(input$public_link, {
+      req(current())
+      if (identical(ctx$state$user$rol, "invitado")) {
+        return(showNotification("Crea una cuenta para compartir enlaces públicos (los proyectos de invitado se borran a las 24 horas).", type = "error"))
+      }
+      link_modal()
+    })
+    observeEvent(input$link_new, {
+      req(current(), ctx$can_edit())
+      session$sendCustomMessage("caring-editor-flush", list())
+      token <- create_public_link(ctx$con, proj$id, current()$id, ctx$state$user$id)
+      audit(ctx$con, ctx$state$user$id, "enlace_publico", paste(proj$id, current()$id))
+      link_modal(public_link_url(ctx$base_url(), token))
+    })
+    observeEvent(input$link_act, {
+      req(ctx$can_edit())
+      links <- list_public_links(ctx$con, proj$id, current()$id)
+      h <- links$token_hash[startsWith(links$token_hash, input$link_act$id %||% "-")]
+      if (length(h) == 1) revoke_public_link(ctx$con, h, proj$id)
+      link_modal()
     })
 
     observeEvent(input$img_upload, {

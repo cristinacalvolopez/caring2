@@ -87,7 +87,19 @@ app_server <- function(input, output, session) {
   if (is.null(.caring$last_cleanup) || difftime(Sys.time(), .caring$last_cleanup, units = "mins") > 60) {
     .caring$last_cleanup <- Sys.time()
     try(cleanup_guests(con), silent = TRUE)
+    try(purge_old_trash(con), silent = TRUE)
   }
+
+  # Enlace público de un informe o presentación (?ver=…): se muestra sin pedir cuenta ni cookie
+  observe({
+    q <- parseQueryString(session$clientData$url_search %||% "")
+    if (is.null(q$ver)) return()
+    pub <- tryCatch(resolve_public_link(con, q$ver), error = function(e) NULL)
+    isolate({
+      state$public <- pub %||% list(error = TRUE)
+      state$page <- "public"
+    })
+  })
 
   # Arranque: enlaces de verificación / recuperación y sesión guardada en la cookie
   # Plan B: si el navegador no envía el token en 4 s, se muestra el acceso igualmente.
@@ -96,6 +108,7 @@ app_server <- function(input, output, session) {
     if (isTRUE(isolate(auth_wait()))) {
       invalidateLater(4000)
       if (!is.null(isolate(state$user)) || !identical(isolate(state$page), "loading")) return(auth_wait(FALSE))
+      if (identical(isolate(state$page), "public")) return(auth_wait(FALSE))
       if (isTRUE(isolate(session$userData$waited))) {
         auth_wait(FALSE)
         state$page <- "login"
@@ -106,6 +119,7 @@ app_server <- function(input, output, session) {
 
   observeEvent(input$auth_token, {
     q <- parseQueryString(session$clientData$url_search)
+    if (!is.null(q$ver) || identical(state$page, "public")) return()
     if (!is.null(q$verificar)) {
       ok <- verify_email(con, q$verificar)
       state$notice <- list(ok = ok, text = if (ok) "Correo confirmado. Ya puedes iniciar sesión." else "El enlace de confirmación no es válido o ya se usó.")
@@ -155,7 +169,7 @@ app_server <- function(input, output, session) {
 
   mod_login_server("login", con, state, base_url, on_login)
   mod_projects_server("projects", con, state, open_project)
-  mod_project_server("project", con, state)
+  mod_project_server("project", con, state, base_url)
   mod_admin_server("admin", con, state, base_url)
   mod_account_server("account", con, state, do_logout)
 
@@ -164,6 +178,7 @@ app_server <- function(input, output, session) {
     page <- state$page
     state$login_version
     if (page == "loading") return(div(class = "c-empty", style = "padding-top:30vh", "Cargando CARING…"))
+    if (page == "public") return(public_page(state$public))
     if (page == "login" || is.null(state$user)) {
       return(mod_login_ui("login", notice = state$notice, reset_token = state$reset_token,
                           registro_abierto = get_setting(con, "registro_abierto")))
@@ -273,4 +288,26 @@ help_text <- function() {
       "Más información en ", tags$a(href = "https://sociocav.usal.es/blog/nca/", target = "_blank", rel = "noopener", "sociocav.usal.es/blog/nca"),
       ". Dudas y sugerencias: ", tags$a(href = "mailto:gas@usal.es", "gas@usal.es"), ".")
   )
+}
+
+# Página pública (enlace de solo lectura de un informe o presentación)
+public_page <- function(pub) {
+  if (is.null(pub) || isTRUE(pub$error)) {
+    return(div(class = "c-empty", style = "padding-top:22vh",
+      tags$img(src = "caring/img/caring-logo-azul.png", alt = "CARING", style = "height:36px"),
+      tags$h1(style = "font-size:24px;margin-top:18px", "Este enlace no está disponible"),
+      p("Puede que lo hayan anulado o que el documento se haya borrado. Pide un enlace nuevo a quien te lo envió.")))
+  }
+  f <- tempfile(fileext = ".html")
+  on.exit(unlink(f))
+  slides <- !identical(pub$doc$type, "report")
+  export_html(pub$dir, pub$doc, f, present = slides, interactive = TRUE)
+  html <- paste(readLines(f, warn = FALSE, encoding = "UTF-8"), collapse = "\n")
+  div(class = "c-public",
+    div(class = "c-public-bar",
+      tags$img(src = "caring/img/caring-logo-blanco.png", alt = "CARING", style = "height:22px"),
+      span(class = "c-public-title", pub$doc$title),
+      span(class = "small-2", if (slides) "Presentación · usa las flechas o haz clic para avanzar" else "Informe · solo lectura")),
+    # aislado de la aplicación: el documento no puede leer nada de la página que lo contiene
+    tags$iframe(class = "c-public-frame", srcdoc = html, title = pub$doc$title, sandbox = "allow-scripts"))
 }

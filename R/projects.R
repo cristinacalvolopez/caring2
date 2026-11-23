@@ -71,19 +71,19 @@ list_projects <- function(con, user_id) {
   own <- db_get(con, "
     SELECT p.*, 'propietario' AS permiso, u.nombre AS propietario
     FROM projects p JOIN users u ON u.id = p.owner_id
-    WHERE p.owner_id = ?", list(user_id))
+    WHERE p.owner_id = ? AND p.borrado IS NULL", list(user_id))
   shared <- db_get(con, "
     SELECT p.*, m.permiso AS permiso, u.nombre AS propietario
     FROM projects p JOIN project_members m ON m.project_id = p.id
     JOIN users u ON u.id = p.owner_id
-    WHERE m.user_id = ?", list(user_id))
+    WHERE m.user_id = ? AND p.borrado IS NULL", list(user_id))
   r <- rbind(own, shared)
   r[order(r$modificado, decreasing = TRUE), , drop = FALSE]
 }
 
 # Permiso de un usuario sobre un proyecto: "propietario", "editor", "lector" o NULL.
 project_access <- function(con, user_id, project_id) {
-  p <- db_get(con, "SELECT owner_id FROM projects WHERE id = ?", list(project_id))
+  p <- db_get(con, "SELECT owner_id FROM projects WHERE id = ? AND borrado IS NULL", list(project_id))
   if (!nrow(p)) return(NULL)
   if (p$owner_id[1] == user_id) return("propietario")
   m <- db_get(con, "SELECT permiso FROM project_members WHERE project_id = ? AND user_id = ?",
@@ -109,6 +109,7 @@ rename_project <- function(con, project_id, nombre) {
          list(trimws(nombre), now_utc(), project_id))
 }
 
+# Borrado definitivo (desde la papelera, o de cuentas de invitado).
 delete_project <- function(con, project_id) {
   unlink(project_path(con, project_id), recursive = TRUE)
   db_run(con, "DELETE FROM projects WHERE id = ?", list(project_id))

@@ -136,7 +136,11 @@ privacy_text <- function() {
       tags$li("El equipo de administración ve tu nombre, correo y el espacio que usas, pero no el contenido de tus datos."),
       tags$li("Los proyectos de invitado se borran automáticamente pasadas 24 horas."),
       tags$li("Puedes descargar o borrar tus proyectos y tu cuenta en cualquier momento desde «Mi cuenta»."),
-      tags$li("No usamos analítica de terceros ni compartimos datos con nadie.")
+      tags$li("Los proyectos y documentos que borras pasan a la papelera y se eliminan del todo a los 30 días."),
+      tags$li("Si creas un enlace público de un informe o presentación, quien tenga el enlace verá ese documento (no los datos). Puedes anularlo cuando quieras."),
+      tags$li("No usamos analítica de terceros ni compartimos datos con nadie."),
+      tags$li(tags$strong("Cookies: "), "solo usamos una cookie técnica, imprescindible para mantener tu sesión iniciada. ",
+              "No usamos cookies de análisis ni de publicidad, ni cargamos contenido de otras webs; por eso no hace falta pedirte permiso.")
     ),
     p(class = "small-2", "Si tus datos contienen información personal, eres responsable de tener la base legal para tratarlos (RGPD)."),
     p(class = "small-2", "Responsable: equipo CARING, proyecto netCoin (Universidad de Salamanca). Contacto: ",
