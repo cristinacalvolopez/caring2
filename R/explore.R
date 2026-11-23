@@ -349,13 +349,23 @@ quiet_ft <- function(expr) {
   })
 }
 
-flextable_caring <- function(tab) quiet_ft({
+# Colores de una tabla según la paleta (cabecera del color principal; texto blanco u oscuro
+# según el contraste). Sin paleta: los de siempre.
+table_colors <- function(pal = NULL) {
+  P <- chart_palettes[[if (!is.null(pal) && pal %in% names(chart_palettes)) pal else "netcoin"]]
+  head <- P$main
+  rgb <- grDevices::col2rgb(head)[, 1] / 255
+  list(head = head, head_text = if (sum(c(0.299, 0.587, 0.114) * rgb) > 0.6) "#1A1A1A" else "#FFFFFF", low = P$low)
+}
+
+flextable_caring <- function(tab, pal = NULL) quiet_ft({
+  tc <- table_colors(pal)
   ft <- flextable::flextable(tab)
   ft <- flextable::font(ft, fontname = "Arial", part = "all")
   ft <- flextable::fontsize(ft, size = 10, part = "all")
   ft <- flextable::bold(ft, part = "header")
-  ft <- flextable::color(ft, color = "#FFFFFF", part = "header")
-  ft <- flextable::bg(ft, bg = "#2F7BEE", part = "header")
+  ft <- flextable::color(ft, color = tc$head_text, part = "header")
+  ft <- flextable::bg(ft, bg = tc$head, part = "header")
   ft <- flextable::border_remove(ft)
   ft <- flextable::hline(ft, border = officer::fp_border(color = "#E3E3E3"), part = "body")
   ft <- flextable::autofit(ft)

@@ -71,3 +71,25 @@ test_that("formas y marca de CARING en las exportaciones", {
   expect_match(brand_html("#135DCD"), "#FFFFFF")
   expect_match(brand_html("#FFFFFF"), "#555555")
 })
+
+test_that("las tablas de los documentos también cambian de colores", {
+  dir <- withr::local_tempdir()
+  y <- explore_from_spec(d0, list(mode = "one", v1 = "educacion"))
+  id <- save_result(dir, "tabla", y$title, list(table = y$table))
+  doc <- new_document("Tablas", "slides")
+  doc$pages[[2]]$elements <- list(list(id = "t1", kind = "result", ref = id, x = 20, y = 20, w = 500, h = 250,
+                                       style = list(palette = "verdes")))
+  verde <- chart_palettes$verdes$main
+  f <- withr::local_tempfile(fileext = ".html"); export_html(dir, doc, f)
+  expect_match(paste(readLines(f, warn = FALSE), collapse = ""), paste0("--th:", verde))
+  pp <- withr::local_tempfile(fileext = ".pptx"); export_pptx(dir, doc, pp)
+  expect_match(paste(readLines(unz(pp, "ppt/slides/slide2.xml"), warn = FALSE), collapse = ""), sub("#", "", verde), ignore.case = TRUE)
+  dx <- withr::local_tempfile(fileext = ".docx"); export_docx(dir, doc, dx)
+  expect_match(paste(readLines(unz(dx, "word/document.xml"), warn = FALSE), collapse = ""), sub("#", "", verde), ignore.case = TRUE)
+  x <- withr::local_tempfile(fileext = ".xlsx"); export_tables_xlsx(dir, doc, x)
+  st <- paste(utils::capture.output(print(openxlsx::getStyles(openxlsx::loadWorkbook(x)))), collapse = " ")
+  expect_match(st, verde, ignore.case = TRUE)
+  # contraste: cabecera clara con texto oscuro
+  expect_equal(table_colors("pastel")$head_text, "#1A1A1A")
+  expect_equal(table_colors(NULL)$head, "#2F7BEE")
+})

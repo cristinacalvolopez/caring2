@@ -141,7 +141,8 @@ export_html <- function(dir, doc, file, present = FALSE, static = FALSE) {
               paste0(img, sprintf('<button class="net-open" onclick="openNet(\'%s\', event)">Ver red interactiva</button>', r$id))
             } else img
           } else if (identical(r$kind, "tabla")) {
-            paste0('<div class="tbl">', as.character(html_table(r$object$table)), "</div>")
+            tc <- table_colors(e$style$palette)
+            paste0('<div class="tbl" style="--th:', tc$head, ';--thc:', tc$head_text, '">', as.character(html_table(r$object$table)), "</div>")
           } else if (present && !static && is.character(r$object$fig) && nzchar(r$object$fig)) {
             pal <- e$style$palette
             fg <- if (!is.null(pal) && is.character(r$object$figs[[pal]]) && nzchar(r$object$figs[[pal]])) r$object$figs[[pal]] else r$object$fig
@@ -184,7 +185,7 @@ body{margin:0;background:%s;font-family:Roboto,Arial,sans-serif}
 .brand img{height:20px;width:auto;display:block}
 .pnum{position:absolute;bottom:12px;font-size:12px;z-index:40}.pnum.right{right:16px}.pnum.center{left:0;right:0;text-align:center}
 .mk{border-radius:2px;padding:0 1px}
-.c-table{width:100%%;border-collapse:collapse}.c-table th{background:#2F7BEE;color:#fff;padding:4px 8px;text-align:left}
+.c-table{width:100%%;border-collapse:collapse}.c-table th{background:var(--th,#2F7BEE);color:var(--thc,#fff);padding:4px 8px;text-align:left}
 .c-table td{padding:4px 8px;border-top:1px solid #E3E3E3}.c-table .num{text-align:right}
 .net-open{position:absolute;right:6px;bottom:6px;background:#2F7BEE;color:#fff;border:0;border-radius:5px;padding:6px 10px;font:inherit;font-size:13px;cursor:pointer}
 .net-open:hover{background:#135DCD}
@@ -321,7 +322,7 @@ export_pptx <- function(dir, doc, file) {
           loc_args <- list(left = inch(e$x), top = inch(e$y), width = inch(e$w), height = inch(e$h))
         }
         if (identical(r$kind, "tabla") && !is.null(r$object$table)) {
-          ft <- quiet_ft(flextable::fit_to_width(flextable_caring(r$object$table), max_width = inch(e$w)))
+          ft <- quiet_ft(flextable::fit_to_width(flextable_caring(r$object$table, e$style$palette), max_width = inch(e$w)))
           pp <- quiet_ft(officer::ph_with(pp, ft, location = do.call(officer::ph_location, loc_args)))
         } else {
           png <- palette_png(dir, r$id, e$style$palette)
@@ -484,7 +485,7 @@ export_docx <- function(dir, doc, file) {
         if (is.null(r)) next
         if (identical(r$kind, "tabla") && !is.null(r$object$table)) {
           dx <- officer::body_add_par(dx, r$title, style = "table title")
-          dx <- quiet_ft(flextable::body_add_flextable(dx, flextable::fit_to_width(flextable_caring(r$object$table), 6.3)))
+          dx <- quiet_ft(flextable::body_add_flextable(dx, flextable::fit_to_width(flextable_caring(r$object$table, e$style$palette), 6.3)))
         } else {
           png <- palette_png(dir, r$id, e$style$palette)
           if (file.exists(png)) {
@@ -526,7 +527,7 @@ doc_tables <- function(dir, doc) {
       if (is.null(r) || is.null(r$object$table) || !nrow(r$object$table)) next
       vistos <- c(vistos, id)
       out[[length(out) + 1]] <- list(title = r$title, subtitle = r$object$subtitle %||% "", stats = r$object$stats %||% "",
-                                     table = r$object$table, page = k, kind = r$kind)
+                                     table = r$object$table, page = k, kind = r$kind, palette = e$style$palette)
     }
   }
   out
@@ -538,7 +539,7 @@ export_tables_xlsx <- function(dir, doc, file) {
   wb <- openxlsx::createWorkbook()
   tit <- openxlsx::createStyle(textDecoration = "bold", fontSize = 13)
   sub <- openxlsx::createStyle(fontColour = "#555555", fontSize = 10, wrapText = FALSE)
-  hs <- openxlsx::createStyle(textDecoration = "bold", fgFill = "#2F7BEE", fontColour = "#FFFFFF", border = "bottom")
+  hs_de <- function(pal) { tc <- table_colors(pal); openxlsx::createStyle(textDecoration = "bold", fgFill = tc$head, fontColour = tc$head_text, border = "bottom") }
   tot <- openxlsx::createStyle(textDecoration = "bold", border = "top")
   usados <- character()
   for (i in seq_along(tabs)) {
@@ -550,7 +551,7 @@ export_tables_xlsx <- function(dir, doc, file) {
     openxlsx::writeData(wb, hoja, t$title, startRow = 1); openxlsx::addStyle(wb, hoja, tit, rows = 1, cols = 1)
     openxlsx::writeData(wb, hoja, paste(c(t$subtitle, paste0("Página ", t$page, if (identical(t$kind, "grafico")) " · tabla del gráfico")), collapse = " · "), startRow = 2)
     openxlsx::addStyle(wb, hoja, sub, rows = 2, cols = 1)
-    openxlsx::writeData(wb, hoja, t$table, startRow = 4, headerStyle = hs)
+    openxlsx::writeData(wb, hoja, t$table, startRow = 4, headerStyle = hs_de(t$palette))
     filas_tot <- which(as.character(t$table[[1]]) %in% c("Total", "n", "Casos (n)")) + 4
     if (length(filas_tot)) openxlsx::addStyle(wb, hoja, tot, rows = filas_tot, cols = seq_len(ncol(t$table)), gridExpand = TRUE, stack = TRUE)
     if (nzchar(t$stats)) openxlsx::writeData(wb, hoja, t$stats, startRow = nrow(t$table) + 6)
@@ -568,7 +569,7 @@ export_tables_docx <- function(dir, doc, file) {
   for (t in tabs) {
     dx <- officer::body_add_par(dx, t$title, style = "heading 2")
     if (nzchar(t$subtitle)) dx <- officer::body_add_par(dx, t$subtitle, style = "Normal")
-    dx <- quiet_ft(flextable::body_add_flextable(dx, flextable::fit_to_width(flextable_caring(t$table), 6.3)))
+    dx <- quiet_ft(flextable::body_add_flextable(dx, flextable::fit_to_width(flextable_caring(t$table, t$palette), 6.3)))
     if (nzchar(t$stats)) dx <- officer::body_add_par(dx, t$stats, style = "Normal")
   }
   quiet_ft(print(dx, target = file))

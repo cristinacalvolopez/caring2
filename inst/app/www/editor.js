@@ -265,7 +265,11 @@
       }
       var r = E.assets.results[e.ref];
       if (!r) n.appendChild(h("div", { "class": "ed-missing", text: "Resultado borrado" }));
-      else if (r.kind === "tabla" && r.html) n.appendChild(h("div", { "class": "ed-table", html: r.html }));
+      else if (r.kind === "tabla" && r.html) {
+        var tp = E.palettes && E.palettes[(e.style && e.style.palette) || "netcoin"];
+        n.appendChild(h("div", { "class": "ed-table", html: r.html,
+          style: tp ? "--th:" + tp.head + ";--thc:" + tp.head_text : "" }));
+      }
       else if (interactive && r.fig && window.Plotly) {
         // Gráfico interactivo (en las descargas se usa la imagen)
         var pd = h("div", { "class": "ed-plotly", role: "img", "aria-label": r.title });
@@ -469,11 +473,11 @@
     } else if (e.kind === "result") {
       var r = E.assets.results[e.ref];
       side.appendChild(h("div", { "class": "ed-label", title: r ? r.title : "", text: r ? shortTitle(r.title, 80) : "Resultado" }));
-      if (r && r.kind === "grafico" && E.palettes) {
-        // Colores del gráfico
+      if (r && (r.kind === "grafico" || r.kind === "tabla") && E.palettes) {
+        // Colores del gráfico o de la tabla
         e.style = e.style || {};
-        var cur = e.style.palette || "netcoin";
-        side.appendChild(h("div", { "class": "ed-label", text: "Colores del gráfico" }));
+        var cur = e.style.palette || "netcoin", esTabla = r.kind === "tabla";
+        side.appendChild(h("div", { "class": "ed-label", text: esTabla ? "Colores de la tabla" : "Colores del gráfico" }));
         var pl = h("div", { "class": "ed-palettes", role: "radiogroup", "aria-label": "Colores del gráfico" });
         Object.keys(E.palettes).forEach(function (k) {
           var P = E.palettes[k];
@@ -483,11 +487,12 @@
              h("span", { text: P.nombre })]));
         });
         side.appendChild(pl);
-        side.appendChild(h("button", { type: "button", "class": "btn btn-light-c btn-sm mb-2", text: "Usar estos colores en todos los gráficos",
+        side.appendChild(h("button", { type: "button", "class": "btn btn-light-c btn-sm mb-2",
+          text: esTabla ? "Usar estos colores en todas las tablas" : "Usar estos colores en todos los gráficos",
           onclick: function () {
             E.doc.pages.forEach(function (pg) { pg.elements.forEach(function (x) {
               var rr = x.kind === "result" && E.assets.results[x.ref];
-              if (rr && rr.kind === "grafico") { x.style = x.style || {}; x.style.palette = e.style.palette; }
+              if (rr && rr.kind === r.kind) { x.style = x.style || {}; x.style.palette = e.style.palette; }
             }); });
             commit(); render();
           } }));

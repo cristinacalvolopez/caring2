@@ -115,7 +115,10 @@ mod_informes_server <- function(id, ctx) {
         el = ns("editor"), inputId = ns("doc_json"), deleteResultId = ns("del_result"),
         imageInput = ns("img_upload"), doc = doc, assets = assets(),
         templates = templates_for(doc$type, th), theme = theme_for_editor(th, doc$type),
-        palettes = lapply(chart_palettes, function(p) list(nombre = p$nombre, colors = p$colors))))
+        palettes = lapply(names(chart_palettes), function(k) {
+          p <- chart_palettes[[k]]; tc <- table_colors(k)
+          list(nombre = p$nombre, colors = p$colors, head = tc$head, head_text = tc$head_text)
+        }) |> stats::setNames(names(chart_palettes))))
     }
 
     # Se monta el editor al entrar en el paso Informes o al cambiar de documento.
