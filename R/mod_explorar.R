@@ -26,14 +26,13 @@ mod_explorar_ui <- function(id) {
             div(tags$h2(textOutput(ns("title"), inline = TRUE)),
                 div(class = "small-2", textOutput(ns("subtitle"), inline = TRUE))),
             div(class = "d-flex gap-2 align-items-center flex-wrap",
-              div(class = "form-check form-switch c-switch",
-                tags$input(class = "form-check-input", type = "checkbox", role = "switch", id = ns("interactive")),
-                tags$label(class = "form-check-label", `for` = ns("interactive"), "Interactivo")),
+              div(class = "c-seg c-seg-sm", radioButtons(ns("view_mode"), NULL, inline = TRUE,
+                c("Interactivo" = "interactivo", "Estático" = "estatico"), selected = "interactivo")),
               downloadButton(ns("dl_png"), "PNG", class = "btn-light-c", icon = NULL),
               downloadButton(ns("dl_html"), "HTML interactivo", class = "btn-light-c", icon = NULL),
               actionButton(ns("add_plot"), "+ Añadir al informe", class = "btn-primary"))),
-          conditionalPanel("!input.interactive", ns = ns, plotOutput(ns("plot"), height = "460px")),
-          conditionalPanel("input.interactive", ns = ns, plotly::plotlyOutput(ns("plotly"), height = "460px"))),
+          conditionalPanel("input.view_mode == 'estatico'", ns = ns, plotOutput(ns("plot"), height = "460px")),
+          conditionalPanel("input.view_mode != 'estatico'", ns = ns, plotly::plotlyOutput(ns("plotly"), height = "460px"))),
         div(class = "c-card c-card-pad",
           div(class = "d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2",
             tags$h2("Tabla"),
@@ -143,7 +142,7 @@ mod_explorar_server <- function(id, ctx) {
     }, res = 110)
 
     output$plotly <- plotly::renderPlotly({
-      req(isTRUE(input$interactive))
+      req(!identical(input$view_mode, "estatico"))
       r <- result()
       validate(need(is.null(r$error), r$error))
       validate(need(!is.null(r$plot), "Esta variable no tiene gráfico."))

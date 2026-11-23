@@ -46,9 +46,17 @@ test_that("gráficos interactivos para todos los tipos", {
     b <- suppressWarnings(plotly::plotly_build(w))
     expect_equal(b$x$config$locale, "es")
   }
-  # las barras llevan el texto de ayuda en español
+  # las barras llevan el porcentaje y el texto de ayuda en español
   b <- suppressWarnings(plotly::plotly_build(to_plotly(explore_one(d, "educacion"))))
-  expect_true(any(grepl("%", unlist(lapply(b$x$data, `[[`, "text")))))
+  expect_equal(b$x$data[[1]]$text[1], "24,1 %")
+  expect_match(b$x$data[[1]]$hovertext[1], "n = 289")
+  b2 <- suppressWarnings(plotly::plotly_build(to_plotly(explore_two(d, "internet", "educacion"))))
+  expect_true(all(grepl(" %$", b2$x$data[[1]]$text)))
+  # los gráficos numéricos no muestran nombres internos ni textos en inglés
+  b3 <- suppressWarnings(plotly::plotly_build(to_plotly(explore_one(d, "edad"))))
+  txt <- unlist(lapply(b3$x$data, `[[`, "text"))
+  expect_false(any(grepl("count:|w: |density:", txt)))
+  expect_true(any(grepl("Casos:", txt)))
   f <- withr::local_tempfile(fileext = ".html")
   save_plotly_html(to_plotly(explore_one(d, "genero")), f, "Prueba")
   html <- readLines(f, warn = FALSE)

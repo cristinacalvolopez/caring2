@@ -347,7 +347,7 @@ explore_mr <- function(d, id, weight = NULL, chart = NULL) {
   ch <- pick_chart(chart, "mr")
   p <- plot_cat(pd, ch) + ggplot2::labs(x = if (ch == "barras_v") NULL else "% de casos",
                                         y = if (ch == "barras_v") "% de casos" else NULL)
-  list(title = mr_label(s),
+  list(pd = pd, chart = ch, title = mr_label(s),
        subtitle = paste0("Respuesta múltiple · ", fmt_int(round(casos)), " casos con respuesta",
                          if (!is.null(weight) && nzchar(weight)) " · ponderado" else ""),
        table = tab, plot = p,
