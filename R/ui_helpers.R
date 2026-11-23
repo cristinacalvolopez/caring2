@@ -66,13 +66,17 @@ steps_nav <- function(active, input_id = "project-step") {
 # Tabla HTML con el estilo de CARING.
 html_table <- function(df, num_cols = NULL, total_last = FALSE) {
   if (is.null(df) || !nrow(df)) return(div(class = "c-hint", "Sin datos."))
+  # nombres de columna vacíos o NA (categorías sin etiqueta): se muestran y no rompen la tabla
+  nm <- names(df); nm[is.na(nm) | !nzchar(nm)] <- "(sin etiqueta)"; names(df) <- make.unique(nm, sep = " ")
   if (is.null(num_cols)) num_cols <- names(df)[-1]
   tags$table(class = "c-table",
     tags$thead(tags$tr(lapply(names(df), function(n) tags$th(class = if (n %in% num_cols) "num", n)))),
     tags$tbody(lapply(seq_len(nrow(df)), function(i) {
       tags$tr(class = if ((total_last && i == nrow(df)) || isTRUE(as.character(df[i, 1]) %in% c("Total", "n", "Casos (n)"))) "total",
-              lapply(names(df), function(n) tags$td(class = paste(if (n %in% num_cols) "num", if (n == "Total") "tot"),
-                                                    as.character(df[i, n]))))
+              lapply(names(df), function(n) {
+                v <- as.character(df[i, n])
+                tags$td(class = paste(if (n %in% num_cols) "num", if (identical(n, "Total")) "tot"), if (is.na(v)) "" else v)
+              }))
     }))
   )
 }

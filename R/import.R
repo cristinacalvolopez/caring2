@@ -143,6 +143,18 @@ standardize_data <- function(d) {
       }
     }
     if (inherits(x, "POSIXlt")) x <- as.POSIXct(x)
+    # Una categoría llamada NA (factores con addNA, algunos .rds/.RData) es un valor perdido;
+    # las categorías sin texto se rotulan para que se vean en tablas y gráficos.
+    if (is.factor(x)) {
+      lv <- levels(x)
+      if (anyNA(lv) || any(!nzchar(trimws(lv)))) {
+        ord <- is.ordered(x)
+        xc <- as.character(x)
+        xc[!is.na(xc) & !nzchar(trimws(xc))] <- "(sin etiqueta)"
+        lv2 <- unique(ifelse(!nzchar(trimws(lv[!is.na(lv)])), "(sin etiqueta)", lv[!is.na(lv)]))
+        x <- factor(xc, levels = lv2, ordered = ord)
+      }
+    }
     attributes_clean <- !(is.factor(x) || inherits(x, c("Date", "POSIXct")))
     if (attributes_clean) attributes(x) <- NULL
     if (!is.null(lab) && nzchar(lab)) attr(x, "label") <- as.character(lab)

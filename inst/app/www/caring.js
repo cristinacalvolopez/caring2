@@ -108,7 +108,7 @@
     [/object '([^']+)' not found/i, "No existe «$1»."],
     [/undefined columns selected/i, "Alguna de las variables elegidas no existe."],
     [/non-numeric argument/i, "Se ha intentado hacer una operación numérica con una variable que no es numérica."],
-    [/missing value where TRUE\/FALSE needed/i, "Hay valores perdidos donde se necesitaba un sí/no."],
+    [/missing value where TRUE\/FALSE needed|valor ausente donde TRUE\/FALSE es necesario/i, "Hay valores perdidos (o categorías sin etiqueta) donde se necesitaba un sí/no."],
     [/argument is of length zero/i, "Falta un valor necesario."],
     [/An error has occurred/i, "Ha ocurrido un error inesperado. Si se repite, avisa a la administración de CARING."]
   ];

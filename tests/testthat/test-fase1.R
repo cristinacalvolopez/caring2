@@ -129,3 +129,20 @@ test_that("el editor de variables admite categorías raras", {
   f <- withr::local_tempfile(fileext = ".sav"); haven::write_sav(sp, f)
   expect_equal(levels(read_any(f)$p), c("1", "Bien"))
 })
+
+test_that("una categoría sin etiqueta (NA) no rompe las tablas", {
+  dd <- d
+  dd$x <- addNA(factor(ifelse(seq_len(nrow(d)) %% 9 == 0, NA, as.character(d$region))))
+  r <- explore_two(dd, "educacion", "x")
+  expect_false(anyNA(names(r$table)))
+  expect_s3_class(html_table(r$table), "shiny.tag")
+  t <- r$table; names(t)[2] <- NA
+  expect_s3_class(html_table(t), "shiny.tag")
+  f <- withr::local_tempfile(fileext = ".rds"); saveRDS(dd, f)
+  x <- read_any(f)$x
+  expect_false(anyNA(levels(x)))
+  expect_equal(sum(is.na(x)), sum(seq_len(nrow(d)) %% 9 == 0))
+  y <- read_any({ g <- withr::local_tempfile(fileext = ".rds"); saveRDS(data.frame(z = factor(c("", "a", "a"))), g); g })$z
+  expect_true("(sin etiqueta)" %in% levels(y))
+  expect_match(error_es(simpleError("valor ausente donde TRUE/FALSE es necesario")), "valores perdidos")
+})

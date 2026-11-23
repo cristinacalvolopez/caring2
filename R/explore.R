@@ -208,7 +208,9 @@ explore_two <- function(d, v1, v2, weight = NULL, pct = "col", chart = NULL, cou
 explore_catcat <- function(d, v1, v2, weight, pct, chart, counts = FALSE) {
   w <- weights_of(d, weight)
   ok <- !is.na(d[[v1]]) & !is.na(d[[v2]])
-  dd <- data.frame(a = droplevels(d[[v1]][ok]), b = droplevels(d[[v2]][ok]), w = w[ok])
+  sin_na <- function(f) factor(as.character(f), levels = levels(f)[!is.na(levels(f))], ordered = is.ordered(f))
+  dd <- data.frame(a = droplevels(sin_na(d[[v1]][ok])), b = droplevels(sin_na(d[[v2]][ok])), w = w[ok])
+  dd <- dd[!is.na(dd$a) & !is.na(dd$b), , drop = FALSE]
   ct <- stats::xtabs(w ~ a + b, data = dd)
   n <- sum(ct)
   prop <- switch(pct,

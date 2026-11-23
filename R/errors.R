@@ -11,7 +11,7 @@ errores_conocidos <- c(
   "non-numeric argument to (binary operator|mathematical function)" = "Se ha intentado hacer una operación numérica con una variable que no es numérica.",
   "argument is not numeric or logical" = "La variable no es numérica.",
   "undefined columns selected" = "Alguna de las variables elegidas no existe.",
-  "missing value where TRUE/FALSE needed" = "Hay valores perdidos donde se necesitaba un sí/no.",
+  "missing value where TRUE/FALSE needed|valor ausente donde TRUE/FALSE es necesario" = "Hay valores perdidos (o categorías sin etiqueta) donde se necesitaba un sí/no.",
   "argument is of length zero" = "Falta un valor necesario.",
   "replacement has (\\d+) rows?, data has (\\d+)" = "El resultado tiene \\1 filas y los datos \\2.",
   "arguments imply differing number of rows" = "Las variables no tienen el mismo número de casos.",
