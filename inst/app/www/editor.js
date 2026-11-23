@@ -248,9 +248,10 @@
     n.dataset.id = e.id;
     if (e.kind === "text") {
       var s = e.style || {};
-      var t = h("div", { "class": "ed-text", text: e.text || "",
+      var t = h("div", { "class": "ed-text", text: e.runs ? "" : (e.text || ""),
         style: "font-size:" + (s.size || 18) + "px;font-weight:" + (s.bold ? 700 : 400) + ";font-style:" + (s.italic ? "italic" : "normal") +
           ";color:" + (s.color || "#000") + ";text-align:" + (s.align || "left") + ";" + (s.bg ? "background:" + s.bg + ";" : "") });
+      fillRuns(t, e);
       n.appendChild(t);
     } else if (e.kind === "shape") {
       n.style.background = (e.style && e.style.bg) || "#2F7BEE";
@@ -283,6 +284,62 @@
     return n;
   }
 
+  // Subrayador: el texto se guarda como trozos { t: texto, m: color de fondo o null } en e.runs
+  // (y también como texto plano en e.text, para todo lo demás).
+  var MARKS = [["#FFF176", "Amarillo"], ["#A5D6A7", "Verde"], ["#90CAF9", "Azul"], ["#F48FB1", "Rosa"], ["#FFCC80", "Naranja"]];
+  function fillRuns(t, e) {
+    if (!e.runs || !e.runs.length) return;
+    e.runs.forEach(function (r) {
+      var sp = document.createElement("span");
+      sp.textContent = r.t;
+      if (r.m) { sp.style.backgroundColor = r.m; sp.className = "ed-mark"; }
+      t.appendChild(sp);
+    });
+  }
+  function toHex(c) {
+    var m = /rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/.exec(c || "");
+    if (!m) return /^#[0-9a-f]{6}$/i.test(c || "") ? c.toUpperCase() : null;
+    if (m[4] !== undefined && +m[4] === 0) return null;
+    return "#" + [m[1], m[2], m[3]].map(function (x) { return ("0" + (+x).toString(16)).slice(-2); }).join("").toUpperCase();
+  }
+  function readRuns(t) {
+    var out = [];
+    function push(txt, m) {
+      if (!txt) return;
+      var last = out[out.length - 1];
+      if (last && last.m === m) last.t += txt; else out.push({ t: txt, m: m });
+    }
+    function walk(node, mark) {
+      node.childNodes.forEach(function (c) {
+        if (c.nodeType === 3) { push(c.nodeValue, mark); return; }
+        if (c.nodeType !== 1) return;
+        if (c.tagName === "BR") { push("\n", mark); return; }
+        var m = mark, bg = c.style && c.style.backgroundColor;
+        if (bg) m = toHex(bg);
+        var block = /^(DIV|P)$/.test(c.tagName);
+        if (block && out.length && !/\n$/.test(out[out.length - 1].t)) push("\n", mark);
+        walk(c, m);
+      });
+    }
+    walk(t, null);
+    if (out.length) out[out.length - 1].t = out[out.length - 1].t.replace(/\n$/, "");
+    return out;
+  }
+  function markBar(t) {
+    var bar = h("div", { "class": "ed-markbar", role: "toolbar", "aria-label": "Subrayador" }, [h("span", { text: "Subrayar:" })]);
+    MARKS.forEach(function (mk) {
+      bar.appendChild(h("button", { type: "button", "class": "ed-mk", title: mk[1], "aria-label": "Subrayar en " + mk[1].toLowerCase(), style: "background:" + mk[0],
+        onmousedown: function (ev) { ev.preventDefault(); }, onclick: function () { highlight(mk[0]); } }));
+    });
+    bar.appendChild(h("button", { type: "button", "class": "ed-mk none", title: "Quitar subrayado", "aria-label": "Quitar subrayado", text: "✕",
+      onmousedown: function (ev) { ev.preventDefault(); }, onclick: function () { highlight("transparent"); } }));
+    bar.appendChild(h("span", { "class": "ed-mk-hint", text: "Selecciona palabras y elige un color" }));
+    return bar;
+  }
+  function highlight(color) {
+    try { document.execCommand("styleWithCSS", false, true); document.execCommand("hiliteColor", false, color); } catch (err) {}
+  }
+
   function isLightColor(c) {
     var m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})/i.exec(c || "#FFFFFF");
     if (!m) return true;
@@ -293,6 +350,12 @@
     var n = h("div", { "class": "ed-page", style: "width:" + s.w + "px;height:" + s.h + "px;background:" + (p.bg || "#FFFFFF") });
     if (interactive && E.doc.mode === "blocks") n.appendChild(gridOverlay());
     p.elements.forEach(function (e) { n.appendChild(elementNode(e, interactive)); });
+    // Número de página (opción del documento; no en la portada ni en la primera página)
+    var idx = E.doc.pages.indexOf(p);
+    if (E.doc.page_numbers && idx > 0) {
+      n.appendChild(h("div", { "class": "ed-pnum " + (E.doc.type === "report" ? "center" : "right"),
+        style: "color:" + (isLightColor(p.bg) ? "#555555" : "#FFFFFF"), text: String(idx + 1) }));
+    }
     // «Elaborado con CARING» en la primera diapositiva: no es un elemento, no se puede borrar
     if (E.doc.type !== "report" && p === E.doc.pages[0]) {
       var claro = isLightColor(p.bg);
@@ -350,6 +413,8 @@
     drawPlots();
     // Modo
     E.root.querySelectorAll(".ed-mode button").forEach(function (b) { b.classList.toggle("on", b.dataset.mode === E.doc.mode); });
+    var pb = E.root.querySelector(".ed-pnum-btn");
+    if (pb) { pb.classList.toggle("on", !!E.doc.page_numbers); pb.setAttribute("aria-pressed", E.doc.page_numbers ? "true" : "false"); }
     renderSide();
   }
 
@@ -403,7 +468,7 @@
       }
     } else if (e.kind === "result") {
       var r = E.assets.results[e.ref];
-      side.appendChild(h("div", { "class": "ed-label", text: r ? r.title : "Resultado" }));
+      side.appendChild(h("div", { "class": "ed-label", title: r ? r.title : "", text: r ? shortTitle(r.title, 80) : "Resultado" }));
       if (r && r.kind === "grafico" && E.palettes) {
         // Colores del gráfico
         e.style = e.style || {};
@@ -543,11 +608,19 @@
       t.contentEditable = "true";
       t.focus();
       document.execCommand && document.execCommand("selectAll", false, null);
+      var bar = markBar(t);
+      E.root.querySelector(".ed-stage").appendChild(bar);
       t.addEventListener("blur", function () {
         t.contentEditable = "false";
         E.editing = false;
-        var txt = t.innerText.replace(/\n$/, "");
-        if (txt !== e.text) { e.text = txt; commit(); }
+        if (bar.parentNode) bar.parentNode.removeChild(bar);
+        var runs = readRuns(t);
+        var txt = runs.map(function (r) { return r.t; }).join("");
+        var marcado = runs.some(function (r) { return r.m; });
+        var cambio = txt !== e.text || JSON.stringify(marcado ? runs : null) !== JSON.stringify(e.runs || null);
+        e.text = txt;
+        if (marcado) e.runs = runs; else delete e.runs;
+        if (cambio) commit();
         render();
       }, { once: true });
     });
@@ -587,12 +660,18 @@
       var kind = { red: "RED", grafico: "GRÁF", tabla: "TABLA" }[r.kind] || r.kind;
       list.appendChild(h("div", { "class": "ed-res-item" }, [
         r.png ? h("img", { src: r.png, alt: "" }) : h("span", { "class": "ed-kind", text: kind }),
-        h("div", { "class": "ed-rtext" }, [h("strong", { text: r.title }), h("span", { text: kind + " · " + (r.source || "") })]),
+        h("div", { "class": "ed-rtext", title: r.title }, [h("strong", { text: shortTitle(r.title, 60) }), h("span", { text: kind + " · " + (r.source || "") })]),
         h("button", { type: "button", "class": "btn btn-primary btn-sm", text: "Añadir", "aria-label": "Añadir " + r.title, onclick: function () { addResult(id); } }),
         h("button", { type: "button", "class": "btn-link-c ed-del", text: "✕", title: "Borrar resultado", "aria-label": "Borrar " + r.title,
           onclick: function () { Shiny.setInputValue(E.deleteResultId, { id: id, t: Date.now() }, { priority: "event" }); } })
       ]));
     });
+  }
+
+  // Títulos largos: se cortan (el título completo sale al pasar el ratón)
+  function shortTitle(t, max) {
+    t = String(t || "");
+    return t.length > max ? t.slice(0, max - 1).replace(/\s+\S*$/, "") + "…" : t;
   }
 
   // Montaje -------------------------------------------------------------------------------
@@ -627,6 +706,8 @@
         }))]),
       h("button", { type: "button", "class": "btn btn-light-c btn-sm", text: "Imagen", onclick: function () {
         var f = document.getElementById(E.imageInput); if (f) f.click(); } }),
+      h("button", { type: "button", "class": "btn btn-light-c btn-sm ed-pnum-btn", text: "Nº de página", title: "Numerar las páginas automáticamente (no en la portada)",
+        "aria-pressed": "false", onclick: function () { E.doc.page_numbers = !E.doc.page_numbers; commit(); render(); } }),
       h("span", { "class": "ed-sep" }),
       h("button", { type: "button", "class": "btn btn-light-c btn-sm", text: "↶", title: "Deshacer (Ctrl+Z)", "aria-label": "Deshacer", onclick: undo }),
       h("button", { type: "button", "class": "btn btn-light-c btn-sm", text: "↷", title: "Rehacer (Ctrl+Mayús+Z)", "aria-label": "Rehacer", onclick: redo }),

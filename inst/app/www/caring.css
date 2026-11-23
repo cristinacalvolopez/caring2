@@ -246,7 +246,7 @@ pre.c-code { background: #F5F5F5; border: 1px solid var(--c-border-2); border-ra
 .ed-res-item { display: flex; align-items: center; gap: 8px; border: 1px solid var(--c-border-2); border-radius: 3px; padding: 6px; }
 .ed-res-item img, .ed-res-item .ed-kind { width: 52px; height: 36px; object-fit: cover; border-radius: 2px; background: var(--c-blue-light); color: var(--c-blue-dark); font-size: 10px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex: 0 0 52px; }
 .ed-rtext { flex: 1; min-width: 0; display: flex; flex-direction: column; font-size: 13px; }
-.ed-rtext strong { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ed-rtext strong { white-space: normal; }
 .ed-rtext span { color: var(--c-text-2); font-size: 12px; }
 .ed-del { color: var(--c-text-2); }
 @media (max-width: 1100px) { .ed-body { flex-wrap: wrap; } .ed-pages { flex-basis: 100%; flex-direction: row; max-height: none; overflow-x: auto; } .ed-pages-list { flex-direction: row; } .ed-side { flex-basis: 100%; } }
@@ -355,3 +355,34 @@ pre.c-code { background: #F5F5F5; border: 1px solid var(--c-border-2); border-ra
 .ed-pal.on { border-color: #2F7BEE; box-shadow: 0 0 0 2px #CBDEFB; font-weight: 600; }
 .ed-pal-sw { display: inline-flex; border-radius: 3px; overflow: hidden; flex: none; }
 .ed-pal-sw i { display: block; width: 14px; height: 16px; }
+
+/* Editor: subrayador y numeración de páginas */
+.ed-markbar { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); z-index: 30; display: flex; align-items: center; gap: 6px;
+  background: #FFFFFF; border: 1px solid #C9C9C9; border-radius: 8px; padding: 6px 10px; box-shadow: 0 4px 14px rgba(0,0,0,.15); font-size: 13px; color: #1A1A1A; }
+.ed-mk { width: 24px; height: 24px; border-radius: 50%; border: 1px solid rgba(0,0,0,.25); padding: 0; cursor: pointer; }
+.ed-mk.none { background: #FFFFFF; font-size: 12px; line-height: 1; color: #333; }
+.ed-mk-hint { color: #555; font-size: 12px; margin-left: 4px; }
+.ed-stage { position: relative; }
+.ed-mark { border-radius: 2px; padding: 0 1px; }
+.ed-pnum { position: absolute; bottom: 12px; font-size: 12px; z-index: 40; pointer-events: none; user-select: none; }
+.ed-pnum.right { right: 16px; }
+.ed-pnum.center { left: 0; right: 0; text-align: center; }
+.ed-pnum-btn.on { background: #DCE8FB; border-color: #2F7BEE; color: #0B3D91; font-weight: 600; }
+
+/* La columna lateral del editor no crece con títulos largos: el área de edición manda */
+.ed-side { flex: 0 0 280px; width: 280px; max-width: 280px; min-width: 0; }
+.ed-side .c-card { overflow: hidden; }
+.ed-res-item { min-width: 0; }
+.ed-rtext { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
+.ed-rtext strong { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  overflow-wrap: anywhere; font-size: 13.5px; line-height: 1.3; }
+.ed-rtext span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ed-res-item .btn { flex: none; }
+.ed-props .ed-label { overflow-wrap: anywhere; }
+@media (max-width: 1100px) { .ed-side { flex-basis: 100%; width: 100%; max-width: none; } }
+/* Fila de resultado: miniatura a la izquierda, título (2 líneas) arriba y «Añadir» debajo */
+.ed-res-item { display: grid; grid-template-columns: 52px minmax(0, 1fr) 22px; grid-template-rows: auto auto; column-gap: 8px; row-gap: 4px; align-items: start; }
+.ed-res-item > img, .ed-res-item > .ed-kind { grid-column: 1; grid-row: 1 / 3; align-self: center; }
+.ed-res-item > .ed-rtext { grid-column: 2; grid-row: 1; }
+.ed-res-item > .btn-primary { grid-column: 2; grid-row: 2; justify-self: start; padding: 2px 10px; font-size: 13px; }
+.ed-res-item > .ed-del { grid-column: 3; grid-row: 1; justify-self: end; }

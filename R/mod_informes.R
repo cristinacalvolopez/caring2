@@ -25,7 +25,11 @@ mod_informes_ui <- function(id) {
             tags$li(downloadLink(ns("dl_pptx"), "PowerPoint (.pptx)", class = "dropdown-item")),
             tags$li(downloadLink(ns("dl_docx"), "Word (.docx)", class = "dropdown-item")),
             tags$li(downloadLink(ns("dl_pdf"), "PDF", class = "dropdown-item")),
-            tags$li(downloadLink(ns("dl_html"), "HTML con redes interactivas", class = "dropdown-item"))))
+            tags$li(downloadLink(ns("dl_html"), "HTML con redes interactivas", class = "dropdown-item")),
+            tags$li(tags$hr(class = "dropdown-divider")),
+            tags$li(tags$h6(class = "dropdown-header", "Solo las tablas")),
+            tags$li(downloadLink(ns("dl_tab_xlsx"), "Tablas a Excel (.xlsx)", class = "dropdown-item")),
+            tags$li(downloadLink(ns("dl_tab_docx"), "Tablas a Word (.docx)", class = "dropdown-item"))))
       )
     ),
     div(style = "position:absolute; left:-9999px; width:1px; height:1px; overflow:hidden",
@@ -264,7 +268,11 @@ mod_informes_server <- function(id, ctx) {
       export_html(proj$dir, doc, file)
       save_html_copy(file, doc$title)
     })
-    for (o in c("dl_pptx", "dl_docx", "dl_pdf", "dl_html")) outputOptions(output, o, suspendWhenHidden = FALSE)
+    output$dl_tab_xlsx <- downloadHandler(function() paste0(safe_filename(current()$title), "_tablas.xlsx"),
+                                          function(file) export_tables_xlsx(proj$dir, latest(), file))
+    output$dl_tab_docx <- downloadHandler(function() paste0(safe_filename(current()$title), "_tablas.docx"),
+                                          function(file) export_tables_docx(proj$dir, latest(), file))
+    for (o in c("dl_pptx", "dl_docx", "dl_pdf", "dl_html", "dl_tab_xlsx", "dl_tab_docx")) outputOptions(output, o, suspendWhenHidden = FALSE)
 
     observeEvent(input$present, {
       req(current())

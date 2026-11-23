@@ -22,7 +22,7 @@ new_document <- function(title, type = "slides", theme = "clasico") {
   pages <- if (type == "report") list(page_template("portada", "report", title, theme))
            else list(page_template("portada", "slides", title, theme), page_template("contenido", "slides", theme = theme))
   list(id = substr(gsub("-", "", new_id()), 1, 12), title = title, type = type, mode = "free", theme = theme,
-       created = now_utc(), modified = now_utc(), pages = pages)
+       page_numbers = TRUE, created = now_utc(), modified = now_utc(), pages = pages)
 }
 
 doc_path <- function(dir, id) {
@@ -122,7 +122,7 @@ export_html <- function(dir, doc, file, present = FALSE, static = FALSE) {
                   s$size %||% 18, if (isTRUE(s$bold)) 700 else 400, if (isTRUE(s$italic)) "italic" else "normal",
                   css_color(s$color), s$align %||% "left",
                   if (!is.null(s$bg)) paste0("background:", s$bg, ";") else "",
-                  gsub("\n", "<br>", htmltools::htmlEscape(e$text %||% "")))
+                  text_html(e))
         },
         shape = sprintf('<div style="width:100%%;height:100%%;background:%s;%s"></div>',
                         css_color(e$style$bg, "#2F7BEE"), shape_css(e$style$shape, e$style$radius)),
@@ -160,6 +160,10 @@ export_html <- function(dir, doc, file, present = FALSE, static = FALSE) {
       sprintf('<div class="el" style="%s">%s</div>', st, inner)
     })
     marca <- if (slides && i == 1) brand_html(p$bg) else ""
+    if (isTRUE(doc$page_numbers) && i > 1) {
+      marca <- paste0(marca, sprintf('<div class="pnum %s" style="color:%s">%d</div>', if (slides) "right" else "center",
+                                     if (is_light(css_color(p$bg, "#FFFFFF"))) "#555555" else "#FFFFFF", i))
+    }
     sprintf('<section class="page" id="p%d" style="background:%s">%s%s</section>', i, css_color(p$bg, "#FFFFFF"),
             paste(unlist(els), collapse = "\n"), marca)
   }
@@ -178,6 +182,8 @@ body{margin:0;background:%s;font-family:Roboto,Arial,sans-serif}
 .plt{width:100%%;height:100%%}
 .brand{position:absolute;right:16px;bottom:12px;display:flex;align-items:center;gap:6px;font-size:11px;z-index:50;pointer-events:none}
 .brand img{height:20px;width:auto;display:block}
+.pnum{position:absolute;bottom:12px;font-size:12px;z-index:40}.pnum.right{right:16px}.pnum.center{left:0;right:0;text-align:center}
+.mk{border-radius:2px;padding:0 1px}
 .c-table{width:100%%;border-collapse:collapse}.c-table th{background:#2F7BEE;color:#fff;padding:4px 8px;text-align:left}
 .c-table td{padding:4px 8px;border-top:1px solid #E3E3E3}.c-table .num{text-align:right}
 .net-open{position:absolute;right:6px;bottom:6px;background:#2F7BEE;color:#fff;border:0;border-radius:5px;padding:6px 10px;font:inherit;font-size:13px;cursor:pointer}
@@ -258,6 +264,14 @@ export_pptx <- function(dir, doc, file) {
                              location = officer::ph_location(left = 0, top = 0, width = 13.333, height = 7.5, bg = p$bg))
     }
     marca <- if (ip == 1 && !identical(doc$type, "report")) list(list(kind = "brand", bg = p$bg))
+    if (isTRUE(doc$page_numbers) && ip > 1) {
+      claro <- is_light(css_color(p$bg, "#FFFFFF"))
+      sz <- page_size(doc$type)
+      pp <- officer::ph_with(pp, officer::fpar(officer::ftext(as.character(ip),
+               officer::fp_text(font.size = 9, color = if (claro) "#555555" else "#FFFFFF", font.family = "Arial")),
+               fp_p = officer::fp_par(text.align = "right")),
+               location = officer::ph_location(left = inch(sz[["w"]] - 16 - 60), top = inch(sz[["h"]] - 12 - 20), width = inch(60), height = inch(20)))
+    }
     for (e in c(p$elements, marca)) {
       if (identical(e$kind, "brand")) {
         # «Elaborado con CARING» en la primera diapositiva (no es un elemento editable)
@@ -385,9 +399,38 @@ office_text <- function(e) {
   props <- officer::fp_text(font.size = as.numeric(s$size %||% 18), bold = isTRUE(s$bold), italic = isTRUE(s$italic),
                             color = css_color(s$color), font.family = "Roboto")
   par <- officer::fp_par(text.align = switch(s$align %||% "left", center = "center", right = "right", justify = "justify", "left"))
-  lines <- strsplit(e$text %||% "", "\n", fixed = TRUE)[[1]]
-  if (!length(lines)) lines <- ""
-  do.call(officer::block_list, lapply(lines, function(l) officer::fpar(officer::ftext(l, props), fp_p = par)))
+  pars <- text_paragraphs(e)
+  do.call(officer::block_list, lapply(pars, function(segs) {
+    trozos <- lapply(segs, function(g) officer::ftext(g$t, if (!is.null(g$m)) update(props, shading.color = g$m) else props))
+    do.call(officer::fpar, c(trozos, list(fp_p = par)))
+  }))
+}
+
+# Texto de un elemento en párrafos; cada párrafo, trozos list(t = texto, m = color del subrayado o NULL).
+text_paragraphs <- function(e) {
+  runs <- e$runs
+  if (!length(runs)) runs <- list(list(t = e$text %||% "", m = NULL))
+  pars <- list(list())
+  for (r in runs) {
+    m <- r$m
+    if (!is.null(m) && !grepl("^#[0-9A-Fa-f]{6}$", m)) m <- NULL
+    partes <- strsplit(as.character(r$t %||% ""), "\n", fixed = TRUE)[[1]]
+    if (grepl("\n$", r$t %||% "")) partes <- c(partes, "")
+    if (!length(partes)) next
+    for (k in seq_along(partes)) {
+      if (k > 1) pars[[length(pars) + 1]] <- list()
+      if (nzchar(partes[k])) pars[[length(pars)]][[length(pars[[length(pars)]]) + 1]] <- list(t = partes[k], m = m)
+    }
+  }
+  lapply(pars, function(p) if (length(p)) p else list(list(t = "", m = NULL)))
+}
+
+text_html <- function(e) {
+  pars <- text_paragraphs(e)
+  paste(vapply(pars, function(segs) paste(vapply(segs, function(g) {
+    t <- htmltools::htmlEscape(g$t)
+    if (is.null(g$m)) t else sprintf('<span class="mk" style="background:%s">%s</span>', g$m, t)
+  }, ""), collapse = ""), ""), collapse = "<br>")
 }
 
 # Ajusta una imagen a una caja manteniendo proporciones.
@@ -405,6 +448,12 @@ fit_image <- function(png, w, h) {
 # Word: los elementos se colocan en orden de lectura (página, de arriba abajo).
 export_docx <- function(dir, doc, file) {
   dx <- officer::read_docx()
+  if (isTRUE(doc$page_numbers)) {
+    pie <- officer::block_list(officer::fpar(officer::run_word_field("PAGE", prop = officer::fp_text(font.size = 9, color = "#555555")),
+                                             fp_p = officer::fp_par(text.align = "center")))
+    dx <- officer::body_set_default_section(dx, officer::prop_section(footer_default = pie, footer_first = officer::block_list(officer::fpar("")),
+                                                                      page_size = officer::page_size(orient = "portrait")))
+  }
   first <- TRUE
   for (p in doc$pages) {
     if (!first) dx <- officer::body_add_break(dx)
@@ -459,4 +508,69 @@ brand_html <- function(bg = NULL) {
   claro <- is_light(css_color(bg, "#FFFFFF"))
   sprintf('<div class="brand" style="color:%s"><span>Elaborado con</span><img src="%s" alt="CARING"></div>',
           if (claro) "#555555" else "#FFFFFF", data_uri(brand_logo(claro), "image/png"))
+}
+
+# Tablas del documento ----------------------------------------------------------------------------
+# Las tablas de un informe o presentación (y la tabla de datos de cada gráfico), en el orden
+# en que aparecen, para descargarlas en Excel o en Word.
+doc_tables <- function(dir, doc) {
+  out <- list(); vistos <- character()
+  for (k in seq_along(doc$pages)) {
+    els <- Filter(function(e) identical(e$kind, "result"), doc$pages[[k]]$elements)
+    if (!length(els)) next
+    ord <- order(vapply(els, function(e) as.numeric(e$y %||% 0), 0), vapply(els, function(e) as.numeric(e$x %||% 0), 0))
+    for (e in els[ord]) {
+      id <- e$ref %||% ""
+      if (id %in% vistos) next
+      r <- load_result(dir, id)
+      if (is.null(r) || is.null(r$object$table) || !nrow(r$object$table)) next
+      vistos <- c(vistos, id)
+      out[[length(out) + 1]] <- list(title = r$title, subtitle = r$object$subtitle %||% "", stats = r$object$stats %||% "",
+                                     table = r$object$table, page = k, kind = r$kind)
+    }
+  }
+  out
+}
+
+export_tables_xlsx <- function(dir, doc, file) {
+  tabs <- doc_tables(dir, doc)
+  if (!length(tabs)) stop("Este documento no tiene tablas ni gráficos con tabla.")
+  wb <- openxlsx::createWorkbook()
+  tit <- openxlsx::createStyle(textDecoration = "bold", fontSize = 13)
+  sub <- openxlsx::createStyle(fontColour = "#555555", fontSize = 10, wrapText = FALSE)
+  hs <- openxlsx::createStyle(textDecoration = "bold", fgFill = "#2F7BEE", fontColour = "#FFFFFF", border = "bottom")
+  tot <- openxlsx::createStyle(textDecoration = "bold", border = "top")
+  usados <- character()
+  for (i in seq_along(tabs)) {
+    t <- tabs[[i]]
+    hoja <- substr(gsub("[\\[\\]\\*\\?/\\\\:]", " ", paste0(i, " ", t$title)), 1, 31)
+    hoja <- make.unique(c(usados, trimws(hoja)), sep = " ")[length(usados) + 1]
+    usados <- c(usados, hoja)
+    openxlsx::addWorksheet(wb, hoja)
+    openxlsx::writeData(wb, hoja, t$title, startRow = 1); openxlsx::addStyle(wb, hoja, tit, rows = 1, cols = 1)
+    openxlsx::writeData(wb, hoja, paste(c(t$subtitle, paste0("Página ", t$page, if (identical(t$kind, "grafico")) " · tabla del gráfico")), collapse = " · "), startRow = 2)
+    openxlsx::addStyle(wb, hoja, sub, rows = 2, cols = 1)
+    openxlsx::writeData(wb, hoja, t$table, startRow = 4, headerStyle = hs)
+    filas_tot <- which(as.character(t$table[[1]]) %in% c("Total", "n", "Casos (n)")) + 4
+    if (length(filas_tot)) openxlsx::addStyle(wb, hoja, tot, rows = filas_tot, cols = seq_len(ncol(t$table)), gridExpand = TRUE, stack = TRUE)
+    if (nzchar(t$stats)) openxlsx::writeData(wb, hoja, t$stats, startRow = nrow(t$table) + 6)
+    openxlsx::setColWidths(wb, hoja, seq_len(ncol(t$table)), c(28, rep(14, ncol(t$table) - 1)))
+  }
+  openxlsx::saveWorkbook(wb, file, overwrite = TRUE)
+  invisible(file)
+}
+
+export_tables_docx <- function(dir, doc, file) {
+  tabs <- doc_tables(dir, doc)
+  if (!length(tabs)) stop("Este documento no tiene tablas ni gráficos con tabla.")
+  dx <- officer::read_docx()
+  dx <- officer::body_add_par(dx, paste("Tablas ·", doc$title), style = "heading 1")
+  for (t in tabs) {
+    dx <- officer::body_add_par(dx, t$title, style = "heading 2")
+    if (nzchar(t$subtitle)) dx <- officer::body_add_par(dx, t$subtitle, style = "Normal")
+    dx <- quiet_ft(flextable::body_add_flextable(dx, flextable::fit_to_width(flextable_caring(t$table), 6.3)))
+    if (nzchar(t$stats)) dx <- officer::body_add_par(dx, t$stats, style = "Normal")
+  }
+  quiet_ft(print(dx, target = file))
+  invisible(file)
 }
