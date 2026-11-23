@@ -260,8 +260,8 @@ export_pptx <- function(dir, doc, file) {
           loc_args <- list(left = inch(e$x), top = inch(e$y), width = inch(e$w), height = inch(e$h))
         }
         if (identical(r$kind, "tabla") && !is.null(r$object$table)) {
-          ft <- flextable::fit_to_width(flextable_caring(r$object$table), max_width = inch(e$w))
-          pp <- officer::ph_with(pp, ft, location = do.call(officer::ph_location, loc_args))
+          ft <- quiet_ft(flextable::fit_to_width(flextable_caring(r$object$table), max_width = inch(e$w)))
+          pp <- quiet_ft(officer::ph_with(pp, ft, location = do.call(officer::ph_location, loc_args)))
         } else {
           png <- file.path(dir, "resultados", paste0(r$id, ".png"))
           if (file.exists(png)) {
@@ -275,7 +275,7 @@ export_pptx <- function(dir, doc, file) {
       }
     }
   }
-  print(pp, target = file)
+  quiet_ft(print(pp, target = file))
   invisible(file)
 }
 
@@ -353,7 +353,7 @@ export_docx <- function(dir, doc, file) {
         if (is.null(r)) next
         if (identical(r$kind, "tabla") && !is.null(r$object$table)) {
           dx <- officer::body_add_par(dx, r$title, style = "table title")
-          dx <- flextable::body_add_flextable(dx, flextable::fit_to_width(flextable_caring(r$object$table), 6.3))
+          dx <- quiet_ft(flextable::body_add_flextable(dx, flextable::fit_to_width(flextable_caring(r$object$table), 6.3)))
         } else {
           png <- file.path(dir, "resultados", paste0(r$id, ".png"))
           if (file.exists(png)) {
@@ -365,6 +365,6 @@ export_docx <- function(dir, doc, file) {
       }
     }
   }
-  print(dx, target = file)
+  quiet_ft(print(dx, target = file))
   invisible(file)
 }

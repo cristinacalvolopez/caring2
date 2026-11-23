@@ -99,3 +99,31 @@
     }
   });
 })();
+
+// Errores que llegan a una salida sin pasar por error_es() (fallos imprevistos): se
+// muestran en español; el texto original queda como detalle técnico.
+(function () {
+  var conocidos = [
+    [/subscript out of bounds|subíndice fuera de\s+los límites/i, "Se ha pedido un elemento que no existe (índice fuera de los límites)."],
+    [/object '([^']+)' not found/i, "No existe «$1»."],
+    [/undefined columns selected/i, "Alguna de las variables elegidas no existe."],
+    [/non-numeric argument/i, "Se ha intentado hacer una operación numérica con una variable que no es numérica."],
+    [/missing value where TRUE\/FALSE needed/i, "Hay valores perdidos donde se necesitaba un sí/no."],
+    [/argument is of length zero/i, "Falta un valor necesario."],
+    [/An error has occurred/i, "Ha ocurrido un error inesperado. Si se repite, avisa a la administración de CARING."]
+  ];
+  var ingles = /\b(the|of|is|are|not|must|be|argument|object|cannot|could|found|invalid|undefined|missing|length|unused|specify|please|error|should|need|failed|unable|with|to)\b/i;
+  var espanol = /[áéíóúñ¿¡]|\b(el|la|los|las|de|del|que|una?|para|con|hay)\b/;
+  function traducir(msg) {
+    if (!msg) return msg;
+    for (var i = 0; i < conocidos.length; i++) {
+      if (conocidos[i][0].test(msg)) return msg.replace(/^[\s\S]*$/, function (m) { var r = m.match(conocidos[i][0]); return conocidos[i][1].replace("$1", r && r[1] ? r[1] : ""); });
+    }
+    if (ingles.test(msg) && !espanol.test(msg)) return "No se ha podido mostrar este apartado (detalle técnico: " + msg + ").";
+    return msg;
+  }
+  window.caringTraducirError = traducir;
+  $(document).on("shiny:error", function (ev) {
+    if (ev.error && typeof ev.error.message === "string") ev.error.message = traducir(ev.error.message);
+  });
+})();

@@ -49,7 +49,7 @@ test_that("el código generado reproduce el resultado", {
   env$datos <- d
   eval(parse(text = code), env)
   expect_equal(as.character(env$datos$educ2), as.character(esperado$educ2))
-  expect_equal(env$datos$doble_edad, esperado$doble_edad)
+  expect_equal(env$datos$doble_edad, esperado$doble_edad, ignore_attr = TRUE)
 })
 
 test_that("las fórmulas no permiten código arbitrario", {

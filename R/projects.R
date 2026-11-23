@@ -207,6 +207,11 @@ list_results <- function(dir) {
   if (!length(f)) return(list())
   r <- lapply(f, function(x) {
     o <- readRDS(x)
+    # Resultados antiguos guardaban el objeto ggplot completo (varios MB): se aligeran.
+    if (!is.null(o$object$plot)) {
+      o$object$plot <- NULL
+      try(saveRDS(o, x), silent = TRUE)
+    }
     o$object <- NULL
     o
   })

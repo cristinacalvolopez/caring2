@@ -30,11 +30,11 @@ net_types <- list(
 # Opciones que tienen sentido en cada tipo de análisis (las demás no se muestran).
 net_options <- function(type) {
   switch(type,
-    coincidencias = c("procedure", "signif", "community", "bonferroni", "min_freq", "degree", "layout"),
-    correlaciones = c("method", "signif", "community", "bonferroni", "degree", "layout"),
+    coincidencias = c("procedure", "signif", "community", "bonferroni", "min_freq", "degree", "layout", "labels"),
+    correlaciones = c("method", "signif", "community", "bonferroni", "degree", "layout", "labels"),
     factorial = c("nclusters", "clusters"),
-    loglineal = c("order", "signif", "community", "degree", "layout"),
-    regresion = c("signif", "layout"),
+    loglineal = c("order", "signif", "community", "degree", "layout", "labels"),
+    regresion = c("signif", "layout", "labels"),
     multiple = c("procedure", "signif", "community", "min_freq", "degree", "layout"),
     character())
 }
@@ -51,6 +51,12 @@ community_methods <- c(
   "Ninguno" = "", "Louvain" = "louvain", "Fast greedy" = "fast_greedy",
   "Walktrap" = "walktrap", "Propagación de etiquetas" = "label_prop",
   "Leiden" = "leiden_eigen", "Edge betweenness" = "edge_betweenness"
+)
+
+node_label_styles <- c(
+  "Categoría (Variable) · Mujer (Género)" = "legible",
+  "Solo la categoría · Mujer" = "categoria",
+  "Como en los datos · genero:Mujer" = "original"
 )
 
 layout_methods <- c(
@@ -150,6 +156,51 @@ net_build <- function(d, spec) {
     },
     stop("Tipo de red desconocido")
   )
+  net_readable(net, d, spec$labels %||% "legible")
+}
+
+# Nombres de nodo legibles: en vez de "genero:Mujer", "Mujer (Género)" usando las
+# etiquetas de variable. Solo cambia el texto que se ve (columna etiqueta y nodeLabel);
+# los identificadores de los nodos y los enlaces no se tocan.
+net_readable <- function(net, d, style = "legible") {
+  nodes <- net$nodes
+  if (identical(style, "original") || is.null(nodes) || !nrow(nodes) || is.null(net$options)) return(net)
+  name_col <- net$options$nodeName %||% "nombre"
+  ids <- as.character(nodes[[name_col]] %||% rownames(nodes))
+  var_col <- intersect(c("variable", "var"), names(nodes))[1]
+  lab <- ids
+  if (!is.na(var_col)) {
+    vv <- as.character(nodes[[var_col]])
+    cat <- if ("cat" %in% names(nodes)) as.character(nodes$cat) else rep(NA_character_, nrow(nodes))
+    for (i in seq_along(ids)) {
+      v <- vv[i]
+      if (is.na(v) || !v %in% names(d)) next
+      ci <- cat[i]
+      if (is.na(ci) || !nzchar(ci)) {
+        ci <- if (startsWith(ids[i], paste0(v, ":"))) substring(ids[i], nchar(v) + 2)
+              else if (startsWith(ids[i], v) && ids[i] != v) substring(ids[i], nchar(v) + 1)
+              else NA_character_
+      }
+      lab[i] <- if (is.na(ci)) var_label(d, v)
+                else if (style == "categoria") ci
+                else paste0(ci, " (", var_label(d, v), ")")
+    }
+  } else {
+    # redes de variables (correlaciones): el nodo es la propia variable
+    es_var <- ids %in% names(d)
+    lab[es_var] <- vapply(ids[es_var], function(v) var_label(d, v), "")
+  }
+  if (identical(lab, ids)) return(net)
+  # la leyenda de colores muestra también la etiqueta de la variable
+  if (!is.na(var_col)) {
+    vv <- as.character(nodes[[var_col]])
+    hit <- !is.na(vv) & vv %in% names(d)
+    vv[hit] <- vapply(vv[hit], function(v) var_label(d, v), "")
+    nodes[[var_col]] <- vv
+  }
+  nodes$etiqueta <- lab
+  net$nodes <- nodes
+  net$options$nodeLabel <- "etiqueta"
   net
 }
 
@@ -239,7 +290,10 @@ net_summary <- function(net) {
 # Genera la red como un único HTML autocontenido (sin archivos externos).
 net_render_html <- function(net, out_file) {
   tmp <- tempfile("red-")
-  on.exit(unlink(tmp, recursive = TRUE))
+  # netCoin abre la página en el navegador cuando R es interactivo: aquí solo se quiere el
+  # archivo (la red se ve dentro de CARING; pantalla completa y descarga usan este HTML).
+  old <- options(browser = function(url, ...) invisible(NULL))
+  on.exit({ options(old); unlink(tmp, recursive = TRUE) })
   suppressMessages(utils::capture.output(plot(net, dir = tmp)))
   html <- inline_html(tmp)
   writeLines(html, out_file, useBytes = TRUE)
@@ -300,11 +354,29 @@ net_render <- function(net, html_file, png_file = NULL) {
 net_render_png <- function(html_file, png_file, width = 1200, height = 750) {
   ok <- tryCatch({
     suppressMessages(webshot2::webshot(paste0("file://", normalizePath(html_file)), png_file,
-                                       vwidth = width, vheight = height, delay = 1.5, quiet = TRUE))
+                                       vwidth = width, vheight = height, delay = 1.5, zoom = 2, quiet = TRUE))
+    crop_net_png(png_file)
     file.exists(png_file)
   }, error = function(e) {
     message("No se pudo capturar la imagen de la red: ", conditionMessage(e))
     FALSE
   })
   if (ok) png_file else NULL
+}
+
+# Recorta la captura: quita la barra del título y el sello inferior de la página de
+# netCoin y el espacio en blanco alrededor de la red, dejando un margen pequeño.
+crop_net_png <- function(png_file, header = 37, footer = 32, margin = 24, zoom = 2) {
+  if (!requireNamespace("magick", quietly = TRUE)) return(invisible(png_file))
+  tryCatch({
+    img <- magick::image_read(png_file)
+    info <- magick::image_info(img)
+    h <- info$height - (header + footer) * zoom
+    if (h < 50) return(invisible(png_file))
+    img <- magick::image_crop(img, magick::geometry_area(info$width, h, 0, header * zoom))
+    img <- magick::image_trim(img, fuzz = 4)
+    img <- magick::image_border(img, "white", paste0(margin * zoom, "x", margin * zoom))
+    magick::image_write(img, png_file, format = "png")
+  }, error = function(e) NULL)
+  invisible(png_file)
 }

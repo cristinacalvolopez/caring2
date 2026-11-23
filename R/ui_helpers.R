@@ -102,7 +102,7 @@ fmt_bytes <- function(b) {
 
 # Notificación de error a partir de una condición.
 notify_error <- function(e) {
-  msg <- if (inherits(e, "condition")) conditionMessage(e) else as.character(e)
+  msg <- error_es(e)
   showNotification(msg, type = "error", duration = 8)
 }
 

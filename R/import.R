@@ -110,6 +110,14 @@ standardize_data <- function(d) {
     codes <- NULL
     if (inherits(x, "haven_labelled")) {
       labs <- attr(x, "labels", exact = TRUE)
+      if (length(labs)) {
+        # etiquetas de valor vacías o en blanco: se usa el código («1») como etiqueta
+        vacia <- is.na(names(labs)) | !nzchar(trimws(names(labs)))
+        if (any(vacia)) {
+          names(labs)[vacia] <- as.character(unname(labs[vacia]))
+          attr(x, "labels") <- labs
+        }
+      }
       vals <- unique(stats::na.omit(as.vector(haven::zap_labels(x))))
       if (length(labs) && length(vals) && all(vals %in% labs)) {
         x <- haven::as_factor(x, levels = "labels")
@@ -164,7 +172,29 @@ var_type <- function(x) {
 
 var_label <- function(d, v) {
   l <- attr(d[[v]], "label", exact = TRUE)
-  if (is.null(l) || !nzchar(l)) v else l
+  if (is.null(l) || !nzchar(l)) humanize_name(v) else l
+}
+
+# Propuesta de etiqueta a partir del nombre: "confianza_ciencia" → "Confianza ciencia",
+# "nivelEstudios" → "Nivel estudios". Los nombres tipo código (P12, v3_1) se dejan igual.
+humanize_name <- function(v) {
+  if (grepl("^[[:alpha:]]{0,3}[0-9]+([_.][0-9]+)*[[:alpha:]]?$", v)) return(v)
+  x <- gsub("([[:lower:]])([[:upper:]])", "\\1 \\2", v)
+  x <- gsub("[_.]+", " ", x)
+  x <- trimws(gsub("\\s+", " ", x))
+  if (!nzchar(x)) return(v)
+  words <- strsplit(x, " ")[[1]]
+  words <- ifelse(words == toupper(words) & nchar(words) > 1, words, tolower(words))   # respeta siglas (CIS, PIB)
+  x <- paste(words, collapse = " ")
+  paste0(toupper(substr(x, 1, 1)), substr(x, 2, nchar(x)))
+}
+
+# Variables sin etiqueta propia (para avisar y proponer una).
+unlabelled_vars <- function(d) {
+  names(d)[vapply(names(d), function(v) {
+    l <- attr(d[[v]], "label", exact = TRUE)
+    is.null(l) || !nzchar(l)
+  }, logical(1))]
 }
 
 # Formato español: coma decimal y punto de miles solo a partir de 10.000 (RAE).

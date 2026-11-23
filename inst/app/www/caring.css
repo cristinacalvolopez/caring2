@@ -300,3 +300,19 @@ pre.c-code { background: #F5F5F5; border: 1px solid var(--c-border-2); border-ra
   .c-sticky-col::-webkit-scrollbar { width: 6px; }
   .c-sticky-col::-webkit-scrollbar-thumb { background: var(--c-border); border-radius: 3px; }
 }
+
+/* Aviso de variables sin etiqueta y rejillas de etiquetas */
+.c-label-notice { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; justify-content: space-between;
+  margin: 10px 16px 2px; padding: 9px 12px; border-radius: 8px; background: #FFF6E0; border: 1px solid #F2D58A;
+  color: #5C4300; font-size: 13.5px; }
+.c-label-notice a { font-weight: 600; color: #1F5FC4; }
+.c-label-grid { display: grid; gap: 6px; max-height: 55vh; overflow-y: auto; padding-right: 4px; margin-bottom: 12px; }
+.c-label-row { display: grid; grid-template-columns: minmax(90px, 32%) 1fr; gap: 10px; align-items: center; }
+.c-label-row .form-group, .c-label-row .shiny-input-container { margin-bottom: 0; }
+.c-label-row code { color: #333; font-size: 12.5px; overflow-wrap: anywhere; }
+
+/* Sugerencias de conjuntos de respuesta múltiple: desplegable cerrado por defecto */
+.c-mr-sug { background: #F5F8FE; border: 1px solid #DCE6F7; border-radius: 8px; padding: 8px 12px; color: #222; }
+.c-mr-sug > summary { cursor: pointer; color: #1F5FC4; list-style: revert; }
+.c-mr-sug > summary .small-2 { color: #555; }
+.c-mr-sug[open] > summary { margin-bottom: 2px; }

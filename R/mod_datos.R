@@ -17,6 +17,7 @@ mod_datos_ui <- function(id) {
               div(class = "d-flex flex-wrap gap-2",
                 actionButton(ns("new_mr"), "+ Conjunto de respuesta múltiple", class = "btn-outline-primary"),
                 actionButton(ns("new_var"), "+ Nueva variable", class = "btn-primary"))),
+            uiOutput(ns("label_notice")),
             div(style = "padding:4px 8px 8px", reactable::reactableOutput(ns("vars")))
           )
         ),
@@ -56,6 +57,19 @@ mod_datos_ui <- function(id) {
       )
     )
   )
+}
+
+catlabels_ui <- function(ns, x) {
+  lv <- levels(x)
+  if (length(lv) > 60) return(p(class = "c-hint", "Esta variable tiene demasiadas categorías (", length(lv), ") para editarlas una a una. Recodifícala antes."))
+  n <- tabulate(as.integer(x), nbins = length(lv))      # por posición: admite categorías vacías o NA
+  tagList(
+    p(class = "c-hint", "Cambia el texto de cada categoría. Si dos categorías quedan con la misma etiqueta, se unen en una."),
+    div(class = "c-label-grid",
+      lapply(seq_along(lv), function(i) div(class = "c-label-row",
+        span(class = "small-2", fmt_int(n[i]), " casos"),
+        textInput(ns(paste0("cat_", i)), NULL, value = if (is.na(lv[i])) "" else lv[i], width = "100%")))),
+    actionButton(ns("save_cats"), "Guardar etiquetas", class = "btn-primary"))
 }
 
 formula_help <- function() {
@@ -141,10 +155,13 @@ mod_datos_server <- function(id, ctx) {
           bslib::navset_underline(id = ns("etab"),
             bslib::nav_panel("Renombrar", value = "nombre", div(style = "padding-top:14px",
               textInput(ns("new_name"), "Nombre (sin espacios)", value = v),
-              textInput(ns("new_label"), "Etiqueta", value = attr(x, "label", exact = TRUE) %||% ""),
+              textInput(ns("new_label"), "Etiqueta", value = attr(x, "label", exact = TRUE) %||% "",
+                        placeholder = paste("Sin etiqueta · propuesta:", humanize_name(v))),
               div(class = "d-flex justify-content-between",
                 actionButton(ns("save_name"), "Guardar", class = "btn-primary"),
                 actionButton(ns("drop_var"), "Eliminar variable", class = "btn-danger-c")))),
+            if (is.factor(x)) bslib::nav_panel("Categorías", value = "cats",
+              div(style = "padding-top:14px", catlabels_ui(ns, x))),
             bslib::nav_panel(if (is.numeric(x)) "Tramos" else "Recodificar", value = "recode",
               div(style = "padding-top:14px", recode_ui(ns, d, v))),
             bslib::nav_panel("Perdidos", value = "missing",
@@ -195,6 +212,54 @@ mod_datos_server <- function(id, ctx) {
       if (ok && nzchar(nn) && nn != v) {
         if (ctx$add_step(list(op = "rename", var = v, to = nn))) sel(nn)
       }
+    })
+
+    # Etiquetas de las categorías -----------------------------------------------------
+    observeEvent(input$save_cats, {
+      v <- sel(); d <- data()
+      req(v, v %in% names(d), is.factor(d[[v]]))
+      lv <- levels(d[[v]])
+      nuevos <- vapply(seq_along(lv), function(i) trimws(input[[paste0("cat_", i)]] %||% lv[i] %||% ""), "")
+      if (any(!nzchar(nuevos))) return(showNotification("Ninguna categoría puede quedar sin etiqueta.", type = "error"))
+      if (anyNA(lv)) return(showNotification("Esta variable tiene una categoría «NA»: márcala antes como perdido en la pestaña Perdidos.", type = "error"))
+      cambia <- nuevos != lv
+      if (!any(cambia)) return(showNotification("No has cambiado ninguna etiqueta.", type = "message"))
+      ctx$add_step(list(op = "catlabels", var = v, map = as.list(stats::setNames(nuevos[cambia], lv[cambia]))))
+    })
+
+    # Variables sin etiqueta: aviso y propuesta ---------------------------------------
+    output$label_notice <- renderUI({
+      faltan <- unlabelled_vars(data())
+      if (!length(faltan)) return(NULL)
+      div(class = "c-label-notice",
+        span(HTML(paste0("<strong>", length(faltan), "</strong>",
+             if (length(faltan) == 1) " variable no tiene etiqueta" else " variables no tienen etiqueta",
+             ": se muestran con un nombre legible propuesto (<em>", htmltools::htmlEscape(humanize_name(faltan[1])), "</em>",
+             if (length(faltan) > 1) ", …", ")."))),
+        if (ctx$can_edit()) actionLink(ns("labels_open"), "Revisar y poner etiquetas"))
+    })
+
+    observeEvent(input$labels_open, {
+      faltan <- unlabelled_vars(data())
+      req(length(faltan))
+      lista <- utils::head(faltan, 150)
+      showModal(modalDialog(title = "Poner etiquetas a las variables", size = "l", easyClose = TRUE,
+        p(class = "c-hint", "Te proponemos una etiqueta a partir del nombre de cada variable. Corrígela si hace falta; ",
+          "deja vacía la casilla de las que no quieras etiquetar. Las etiquetas aparecen en tablas, gráficos y redes."),
+        if (length(faltan) > length(lista)) p(class = "c-hint", "Se muestran las ", length(lista), " primeras de ", length(faltan), "."),
+        div(class = "c-label-grid",
+          lapply(seq_along(lista), function(i) div(class = "c-label-row",
+            tags$code(lista[i]),
+            textInput(ns(paste0("lab_", i)), NULL, value = humanize_name(lista[i]), width = "100%")))),
+        footer = tagList(modalButton("Cancelar"), actionButton(ns("labels_ok"), "Guardar etiquetas", class = "btn-primary"))))
+    })
+    observeEvent(input$labels_ok, {
+      lista <- utils::head(unlabelled_vars(data()), 150)
+      labs <- vapply(seq_along(lista), function(i) trimws(input[[paste0("lab_", i)]] %||% ""), "")
+      keep <- nzchar(labs)
+      removeModal()
+      if (!any(keep)) return()
+      ctx$add_step(list(op = "labels", labels = as.list(stats::setNames(labs[keep], lista[keep]))))
     })
 
     observeEvent(input$drop_var, {
@@ -278,7 +343,7 @@ mod_datos_server <- function(id, ctx) {
       e <- trimws(input$nv_expr %||% "")
       if (!nzchar(e)) return(NULL)
       r <- tryCatch(eval_safe(e, data()), error = function(err) err)
-      if (inherits(r, "error")) return(div(class = "c-msg-error", conditionMessage(r)))
+      if (inherits(r, "error")) return(div(class = "c-msg-error", error_es(r)))
       if (length(r) != nrow(data()) && length(r) != 1) return(div(class = "c-msg-error", "La fórmula no da un valor por caso."))
       ej <- utils::head(r, 6)
       div(class = "c-stats mb-2", "Primeros valores: ", paste(format(ej, digits = 3), collapse = " · "),
@@ -309,9 +374,11 @@ mod_datos_server <- function(id, ctx) {
               div(class = "small-2", paste(s$vars, collapse = ", "))),
           if (ctx$can_edit()) tags$a(href = "#", class = "small-2",
             onclick = sprintf("caringAction('%s', '%s', 'drop', event)", ns("mr_action"), s$name), "quitar")))),
-        if (length(sug) && ctx$can_edit()) div(class = "c-stats mt-2",
-          tags$strong("Sugerencias"), " (variables con el mismo prefijo y las mismas categorías):",
-          tags$ul(class = "list-unstyled mb-0 mt-1", lapply(seq_along(sug), function(i) {
+        # Desplegable cerrado por defecto: solo se abre si la persona lo pulsa.
+        if (length(sug) && ctx$can_edit()) tags$details(class = "c-mr-sug mt-2",
+          tags$summary(tags$strong("Sugerencias"), paste0(" (", length(sug), ")"),
+                       span(class = "small-2", " · variables con el mismo prefijo y las mismas categorías")),
+          tags$ul(class = "list-unstyled mb-0 mt-2", lapply(seq_along(sug), function(i) {
             g <- sug[[i]]
             tags$li(class = "d-flex justify-content-between align-items-center gap-2 mt-1",
               span(tags$code(g$name), paste0(" · ", length(g$vars), " variables (", tipo(g$type),
@@ -397,7 +464,7 @@ mod_datos_server <- function(id, ctx) {
       if (!length(s$vars)) return(NULL)
       if (!nzchar(s$name)) s$name <- "vista_previa"
       x <- tryCatch(mr_add(data(), s), error = function(e) e)
-      if (inherits(x, "error")) return(div(class = "c-msg-error", conditionMessage(x)))
+      if (inherits(x, "error")) return(div(class = "c-msg-error", error_es(x)))
       set <- mrsets(x)[[s$name]]
       f <- mr_freq(x, set)
       vacias <- mr_empty_options(x, set)
@@ -441,7 +508,7 @@ mod_datos_server <- function(id, ctx) {
       nr <- r[-i]
       test <- tryCatch(apply_recipe(proj$original, nr), error = function(e) e)
       if (inherits(test, "error")) {
-        return(showNotification(paste("No se puede quitar este paso porque otros dependen de él:", conditionMessage(test)),
+        return(showNotification(paste("No se puede quitar este paso porque otros dependen de él:", error_es(test)),
                                 type = "error", duration = 10))
       }
       ctx$set_recipe(nr)
@@ -471,7 +538,7 @@ mod_datos_server <- function(id, ctx) {
       e <- trimws(input$filter_expr %||% "")
       if (!nzchar(e)) return(NULL)
       r <- tryCatch(eval_safe(e, data()), error = function(err) err)
-      if (inherits(r, "error")) return(div(class = "c-msg-error mb-2", conditionMessage(r)))
+      if (inherits(r, "error")) return(div(class = "c-msg-error mb-2", error_es(r)))
       if (!is.logical(r)) return(div(class = "c-msg-error mb-2", "La condición debe dar verdadero o falso."))
       div(class = "c-stats mb-3", "Se quedarían ", tags$strong(fmt_int(sum(r, na.rm = TRUE))), " de ",
           fmt_int(nrow(data())), " casos.")
@@ -520,7 +587,9 @@ recode_ui <- function(ns, d, v) {
 }
 
 missing_ui <- function(ns, x) {
-  if (is.factor(x)) {
+  if (is.factor(x) && !nlevels(x)) {
+    p(class = "c-hint", "Esta variable no tiene ninguna categoría con datos.")
+  } else if (is.factor(x)) {
     tb <- table(x)
     tagList(
       p(class = "c-hint", "Marca las categorías que en realidad son no-respuesta (No sabe, No contesta…)."),

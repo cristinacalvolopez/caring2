@@ -27,6 +27,8 @@ run_app <- function(port = getOption("shiny.port"), launch.browser = interactive
 }
 
 caring_app <- function() {
+  # Mensajes de R en español cuando R tiene la traducción (el resto los traduce error_es()).
+  Sys.setenv(LANGUAGE = "es")
   cfg <- caring_config()
   dir.create(cfg$storage, recursive = TRUE, showWarnings = FALSE)
   shiny::addResourcePath("caring", app_file("www"))

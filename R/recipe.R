@@ -55,6 +55,34 @@ apply_step <- function(d, s) {
       attr(d[[s$var]], "label") <- s$label
       d
     },
+    labels = {
+      for (v in names(s$labels)) {
+        need_var(d, v)
+        attr(d[[v]], "label") <- as.character(s$labels[[v]])
+      }
+      d
+    },
+    catlabels = {
+      need_var(d, s$var)
+      x <- d[[s$var]]
+      if (!is.factor(x)) stop("Solo se pueden cambiar las etiquetas de categorías en variables categóricas.")
+      map <- unlist(s$map)
+      if (!length(map) || !all(names(map) %in% levels(x))) stop("Alguna categoría no existe en ", s$var, ".")
+      map <- trimws(map)
+      if (any(!nzchar(map))) stop("Las etiquetas de categoría no pueden quedar vacías.")
+      lab <- attr(x, "label", exact = TRUE); codes <- attr(x, "codes", exact = TRUE)
+      lv <- levels(x)
+      lv[match(names(map), lv)] <- map
+      levels(x) <- lv                      # dos categorías con la misma etiqueta se unen
+      if (length(codes)) {
+        hit <- names(codes) %in% names(map)
+        names(codes)[hit] <- map[names(codes)[hit]]
+        attr(x, "codes") <- codes
+      }
+      if (!is.null(lab)) attr(x, "label") <- lab
+      d[[s$var]] <- x
+      d
+    },
     recode = {
       need_var(d, s$var); valid_new_name(d, s$to, allow = if (isTRUE(s$replace)) s$var)
       x <- as.character(d[[s$var]])
@@ -113,6 +141,8 @@ apply_step <- function(d, s) {
       if (length(val) != nrow(d)) stop("La fórmula no devuelve un valor por caso.")
       if (is.logical(val)) val <- factor(val, levels = c(FALSE, TRUE), labels = c("No", "Sí"))
       if (is.character(val)) val <- factor(val)
+      attr(val, "label") <- NULL          # no hereda la etiqueta de la variable de origen
+      attr(val, "codes") <- NULL
       if (!is.null(s$label) && nzchar(s$label)) attr(val, "label") <- s$label
       d[[s$to]] <- val
       d
@@ -221,6 +251,8 @@ step_label <- function(s) {
   switch(s$op,
     rename = paste0("Renombrar ", s$var, " → ", s$to),
     label = paste0("Etiquetar ", s$var, ": «", s$label, "»"),
+    labels = paste0("Poner etiqueta a ", length(s$labels), if (length(s$labels) == 1) " variable" else " variables"),
+    catlabels = paste0("Cambiar etiquetas de categorías de ", s$var, " (", length(s$map), ")"),
     recode = paste0("Recodificar ", s$var, " → ", s$to, " (", length(s$groups), " grupos)"),
     cut = paste0("Agrupar ", s$var, " en tramos → ", s$to),
     missing = paste0("Marcar como perdido en ", s$var, ": ", paste(s$values, collapse = ", ")),
@@ -245,6 +277,11 @@ step_code <- function(s) {
   switch(s$op,
     rename = paste0("names(datos)[names(datos) == ", q(s$var), "] <- ", q(s$to)),
     label = paste0("attr(", col(s$var), ", \"label\") <- ", q(s$label)),
+    labels = vapply(names(s$labels), function(v) paste0("attr(", col(v), ", \"label\") <- ", q(s$labels[[v]])), ""),
+    catlabels = {
+      m <- unlist(s$map)
+      paste0("levels(", col(s$var), ")[match(", qv(names(m)), ", levels(", col(s$var), "))] <- ", qv(unname(m)))
+    },
     recode = {
       lines <- c(paste0("x <- as.character(", col(s$var), ")"),
                  "y <- rep(NA_character_, length(x))")

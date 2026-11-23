@@ -112,26 +112,8 @@ mod_explorar_server <- function(id, ctx) {
     result <- reactive({
       d <- data()
       req(valid_choice(d, input$v1))
-      w <- if (nzchar(input$weight %||% "")) input$weight
-      tryCatch({
-        if (input$mode == "two") {
-          req(valid_choice(d, input$v2))
-          if (input$v1 == input$v2) stop("Elige dos variables distintas.")
-          if (startsWith(input$v1, "mr:") || startsWith(input$v2, "mr:")) {
-            if (startsWith(input$v1, "mr:") && startsWith(input$v2, "mr:")) stop("Cruza el conjunto con una variable categórica, no con otro conjunto.")
-            set <- if (startsWith(input$v1, "mr:")) input$v1 else input$v2
-            otra <- if (startsWith(input$v1, "mr:")) input$v2 else input$v1
-            explore_mr_cat(d, set, otra, weight = w, chart = input$chart, counts = isTRUE(input$counts))
-          } else {
-            explore_two(d, input$v1, input$v2, weight = w, pct = input$pct %||% "col", chart = input$chart,
-                        counts = isTRUE(input$counts))
-          }
-        } else if (startsWith(input$v1, "mr:")) {
-          explore_mr(d, input$v1, weight = w, chart = input$chart)
-        } else {
-          explore_one(d, input$v1, weight = w, chart = input$chart)
-        }
-      }, error = function(e) list(error = conditionMessage(e)))
+      if (input$mode == "two") req(valid_choice(d, input$v2))
+      tryCatch(explore_from_spec(d, explore_spec()), error = function(e) list(error = error_es(e)))
     })
 
     output$title <- renderText({ r <- result(); r$title %||% "" })
@@ -166,6 +148,12 @@ mod_explorar_server <- function(id, ctx) {
         div(style = "overflow-x:auto", html_table(r$table, total_last = identical(r$table[[1]][nrow(r$table)], "Total"))))
     })
 
+    explore_spec <- function() {
+      list(mode = input$mode, v1 = input$v1, v2 = if (input$mode == "two") input$v2,
+           weight = if (nzchar(input$weight %||% "")) input$weight, pct = input$pct %||% "col",
+           chart = input$chart, counts = isTRUE(input$counts))
+    }
+
     add_result <- function(kind) {
       if (!ctx$can_edit()) return(showNotification("Proyecto de solo lectura.", type = "error"))
       r <- result()
@@ -175,11 +163,12 @@ mod_explorar_server <- function(id, ctx) {
       if (kind == "grafico") {
         if (is.null(r$plot)) return(showNotification("Este resultado no tiene gráfico.", type = "error"))
         save_plot_png(r$plot, png)
-        obj <- list(plot = r$plot, subtitle = r$subtitle, stats = r$stats)
       } else {
         save_table_png(r$table, r$title, png)
-        obj <- list(table = r$table, subtitle = r$subtitle, stats = r$stats)
       }
+      # Se guarda la receta del resultado (variables y opciones), no el objeto gráfico:
+      # ocupa unos pocos KB y permite volver a dibujarlo (p. ej., con otros colores).
+      obj <- list(table = r$table, subtitle = r$subtitle, stats = r$stats, spec = explore_spec())
       save_result(ctx$proj$dir, kind, r$title, obj, png = png, source = "Explorar")
       ctx$results_changed()
       showNotification(paste(if (kind == "grafico") "Gráfico" else "Tabla", "añadido a los resultados del proyecto. Lo encontrarás en Informes."),

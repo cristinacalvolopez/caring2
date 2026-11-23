@@ -123,7 +123,9 @@ mod_redes_server <- function(id, ctx) {
           c("K-medias" = "kmeans", "PAM (medoides)" = "pam", "Jerárquico" = "hclust"), selected = keep("clusters", "kmeans")),
         if ("signif" %in% o) checkboxInput(ns("signif"), "Mostrar solo relaciones significativas (p < 0,05)", value = keep("signif", TRUE)),
         if ("community" %in% o) selectInput(ns("community"), "Agrupar en comunidades", community_methods,
-          selected = keep("community", "louvain"))
+          selected = keep("community", "louvain")),
+        if ("labels" %in% o) selectInput(ns("labels"), "Nombres de los nodos", node_label_styles,
+          selected = keep("labels", "legible"))
       )
     })
 
@@ -155,6 +157,7 @@ mod_redes_server <- function(id, ctx) {
            bonferroni = if ("bonferroni" %in% o) isTRUE(input$bonferroni),
            min_freq = val("min_freq", input$min_freq), degree = val("degree", input$degree),
            nclusters = val("nclusters", input$nclusters), clusters = val("clusters", input$clusters),
+           labels = val("labels", input$labels),
            order = if ("order" %in% o) as.integer(input$order %||% 2)))
     })
 
@@ -171,7 +174,7 @@ mod_redes_server <- function(id, ctx) {
         list(net = net, html = f)
       }, error = function(e) e))
       if (inherits(res, "error")) {
-        current$error <- conditionMessage(res)
+        current$error <- error_es(res)
         current$html <- NULL
         return()
       }

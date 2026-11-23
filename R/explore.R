@@ -67,6 +67,42 @@ wrap_labels <- function(x, width = 18) {
   vapply(x, function(s) paste(strwrap(s, width), collapse = "\n"), character(1))
 }
 
+# Prueba χ² de independencia. Sin ponderación: χ² de Pearson. Con ponderación: corrección
+# de Rao-Scott (paquete survey), que no depende de la escala de los pesos; el χ² que se
+# muestra y la V de Cramér se calculan con los pesos reescalados al número real de casos.
+chisq_w <- function(a, b, w = NULL) {
+  ok <- !is.na(a) & !is.na(b)
+  if (!is.null(w)) ok <- ok & !is.na(w) & w > 0
+  a <- droplevels(as.factor(a[ok])); b <- droplevels(as.factor(b[ok]))
+  ponderado <- !is.null(w) && length(unique(w[ok])) > 1
+  w <- if (is.null(w)) rep(1, length(a)) else w[ok] * sum(ok) / sum(w[ok])
+  ct <- stats::xtabs(w ~ a + b)
+  if (nlevels(a) < 2 || nlevels(b) < 2) return(list(statistic = NA_real_, df = NA_integer_, p = NA_real_, v = NA_real_, expected = ct, weighted = ponderado))
+  pe <- suppressWarnings(stats::chisq.test(ct, correct = FALSE))
+  p <- unname(pe$p.value); f <- NULL
+  if (ponderado) {
+    rs <- tryCatch({
+      dd <- data.frame(a = a, b = b, w = w)
+      ds <- survey::svydesign(ids = ~1, weights = ~w, data = dd)
+      suppressWarnings(survey::svychisq(~a + b, ds, statistic = "F"))
+    }, error = function(e) NULL)
+    if (!is.null(rs)) { p <- unname(rs$p.value); f <- list(F = unname(rs$statistic), df = unname(rs$parameter)) }
+  }
+  k <- min(dim(ct)) - 1
+  list(statistic = unname(pe$statistic), df = unname(pe$parameter), p = p, f = f,
+       v = if (k > 0) sqrt(unname(pe$statistic) / (sum(ct) * k)) else NA_real_,
+       expected = pe$expected, weighted = ponderado)
+}
+
+chisq_txt <- function(t) {
+  base <- paste0("χ²(", t$df, ") = ", fmt_num(t$statistic))
+  if (isTRUE(t$weighted) && !is.null(t$f)) {
+    gl <- function(x) if (abs(x - round(x)) < 0.005) fmt_int(round(x)) else fmt_num(x, 2)
+    base <- paste0(base, " · Rao-Scott F(", gl(t$f$df[1]), "; ", gl(t$f$df[2]), ") = ", fmt_num(t$f$F))
+  }
+  base
+}
+
 # Una variable ----------------------------------------------------------------------
 
 explore_one <- function(d, v, weight = NULL, chart = NULL) {
@@ -160,11 +196,11 @@ explore_catcat <- function(d, v1, v2, weight, pct, chart, counts = FALSE) {
   tab <- cbind(stats::setNames(data.frame(rownames(m), check.names = FALSE), var_label(d, v1)),
                as.data.frame(m, check.names = FALSE, stringsAsFactors = FALSE))
   rownames(tab) <- NULL
-  test <- suppressWarnings(stats::chisq.test(ct, correct = FALSE))
-  k <- min(dim(ct)) - 1
-  cv <- if (k > 0) sqrt(unname(test$statistic) / (n * k)) else NA
-  stats_txt <- paste0("χ²(", test$parameter, ") = ", fmt_num(unname(test$statistic)), " · ", p_txt(test$p.value),
-                      " · V de Cramér = ", fmt_num(cv), ". Asociación ", strength(cv), " y ", signif_text(test$p.value), ".")
+  test <- chisq_w(dd$a, dd$b, if (!is.null(weight) && nzchar(weight)) dd$w)
+  cv <- test$v
+  stats_txt <- paste0(chisq_txt(test), " · ", p_txt(test$p),
+                      " · V de Cramér = ", fmt_num(cv), ". Asociación ", strength(cv), " y ", signif_text(test$p), ".")
+  if (isTRUE(test$weighted)) stats_txt <- paste(stats_txt, "Con datos ponderados, la p sale de la corrección de Rao-Scott.")
   if (any(test$expected < 5)) stats_txt <- paste(stats_txt, "Atención: hay casillas con menos de 5 casos esperados.")
 
   pd <- as.data.frame(as.table(prop))
@@ -229,6 +265,24 @@ explore_numnum <- function(d, v1, v2, weight, chart = NULL) {
        table = tab, stats = stats_txt, plot = p)
 }
 
+# Vuelve a calcular un resultado de Explorar a partir de su receta (la que se guarda
+# con cada resultado): modo, variables, ponderación y opciones.
+explore_from_spec <- function(d, spec) {
+  v1 <- spec$v1; v2 <- spec$v2; w <- spec$weight
+  if (identical(spec$mode, "two")) {
+    if (identical(v1, v2)) stop("Elige dos variables distintas.")
+    if (startsWith(v1, "mr:") || startsWith(v2, "mr:")) {
+      if (startsWith(v1, "mr:") && startsWith(v2, "mr:")) stop("Cruza el conjunto con una variable categórica, no con otro conjunto.")
+      set <- if (startsWith(v1, "mr:")) v1 else v2
+      otra <- if (startsWith(v1, "mr:")) v2 else v1
+      return(explore_mr_cat(d, set, otra, weight = w, chart = spec$chart, counts = isTRUE(spec$counts)))
+    }
+    return(explore_two(d, v1, v2, weight = w, pct = spec$pct %||% "col", chart = spec$chart, counts = isTRUE(spec$counts)))
+  }
+  if (startsWith(v1, "mr:")) explore_mr(d, v1, weight = w, chart = spec$chart)
+  else explore_one(d, v1, weight = w, chart = spec$chart)
+}
+
 # Exporta un resultado de Explorar como imagen.
 save_plot_png <- function(p, file, width = 9, height = 5) {
   ggplot2::ggsave(file, p, width = width, height = height, dpi = 150, bg = "white")
@@ -238,10 +292,20 @@ save_plot_png <- function(p, file, width = 9, height = 5) {
 # Imagen de una tabla (para vista previa en el editor de informes).
 save_table_png <- function(tab, title, file) {
   ft <- flextable_caring(tab)
-  tryCatch(flextable::save_as_image(ft, path = file), error = function(e) NULL)
+  tryCatch(quiet_ft(flextable::save_as_image(ft, path = file)), error = function(e) NULL)
 }
 
-flextable_caring <- function(tab) {
+# flextable (0.9.x) llama a una función de gdtools que ya está obsoleta y avisa en la
+# consola («'m_str_extents' is deprecated»). No afecta al resultado: se silencia.
+quiet_ft <- function(expr) {
+  withCallingHandlers(expr, warning = function(w) {
+    if (inherits(w, "deprecatedWarning") || grepl("m_str_extents|strings_sizes", conditionMessage(w))) {
+      invokeRestart("muffleWarning")
+    }
+  })
+}
+
+flextable_caring <- function(tab) quiet_ft({
   ft <- flextable::flextable(tab)
   ft <- flextable::font(ft, fontname = "Arial", part = "all")
   ft <- flextable::fontsize(ft, size = 10, part = "all")
@@ -252,7 +316,7 @@ flextable_caring <- function(tab) {
   ft <- flextable::hline(ft, border = officer::fp_border(color = "#E3E3E3"), part = "body")
   ft <- flextable::autofit(ft)
   ft
-}
+})
 
 # Respuesta múltiple ----------------------------------------------------------------------
 
@@ -303,9 +367,8 @@ explore_mr_cat <- function(d, id, vc, weight = NULL, chart = NULL, counts = FALS
   tot <- colSums(m * ww) / sum(ww)
   # prueba χ² de cada opción (marcada / no marcada) frente a los grupos
   p_opt <- vapply(seq_len(ncol(m)), function(j) {
-    ct <- stats::xtabs(ww ~ factor(m[[j]], levels = 0:1) + g)
-    if (any(rowSums(ct) == 0)) return(NA_real_)
-    suppressWarnings(stats::chisq.test(ct, correct = FALSE)$p.value)
+    if (length(unique(m[[j]])) < 2) return(NA_real_)
+    chisq_w(factor(m[[j]], levels = 0:1), g, if (!is.null(weight) && nzchar(weight)) ww)$p
   }, numeric(1))
   marca <- ifelse(is.na(p_opt), "", ifelse(p_opt < 0.001, " ***", ifelse(p_opt < 0.01, " **", ifelse(p_opt < 0.05, " *", ""))))
   cell <- function(pr, n) if (counts) paste0(fmt_pct(pr), " (", fmt_int(round(n)), ")") else fmt_pct(pr)

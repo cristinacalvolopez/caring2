@@ -32,6 +32,8 @@ Imports:
     readxl,
     data.table,
     netCoin (>= 2.1),
+    survey,
+    magick,
     ggplot2,
     sortable,
     chromote,

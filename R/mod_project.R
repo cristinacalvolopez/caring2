@@ -63,7 +63,7 @@ mod_project_server <- function(id, con, state) {
       proj$version
       req(proj$original)
       tryCatch(apply_recipe(proj$original, proj$recipe), error = function(e) {
-        notify_error(paste("Error al aplicar los cambios:", conditionMessage(e)))
+        notify_error(paste("Error al aplicar los cambios:", error_es(e)))
         proj$original
       })
     })
