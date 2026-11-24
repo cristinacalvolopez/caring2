@@ -28,6 +28,7 @@ mod_explorar_ui <- function(id) {
             div(class = "d-flex gap-2 align-items-center flex-wrap",
               div(class = "c-seg c-seg-sm", radioButtons(ns("view_mode"), NULL, inline = TRUE,
                 c("Interactivo" = "interactivo", "Estático" = "estatico"), selected = "interactivo")),
+              actionButton(ns("about"), "Sobre tus datos", class = "btn-light-c c-about-btn"),
               downloadButton(ns("dl_png"), "PNG", class = "btn-light-c", icon = NULL),
               downloadButton(ns("dl_html"), "HTML interactivo", class = "btn-light-c", icon = NULL),
               actionButton(ns("add_plot"), "+ Añadir al informe", class = "btn-primary"))),
@@ -141,6 +142,11 @@ mod_explorar_server <- function(id, ctx) {
       r$plot
     }, res = 110)
 
+    observeEvent(input$about, {
+      about_modal(tryCatch(explain_explore(data(), explore_spec(), result()),
+                           error = function(e) p("No se ha podido preparar la explicación: ", error_es(e))))
+    })
+
     output$plotly <- plotly::renderPlotly({
       req(!identical(input$view_mode, "estatico"))
       r <- result()
@@ -161,9 +167,7 @@ mod_explorar_server <- function(id, ctx) {
     output$stats <- renderUI({
       r <- result()
       if (!is.null(r$error)) return(div(class = "c-msg-error", r$error))
-      tagList(
-        if (nzchar(r$stats %||% "")) div(class = "c-stats mb-2", r$stats),
-        div(class = "mb-3", explore_help(r$kind %||% tryCatch(kind(), error = function(e) NULL))))
+      if (nzchar(r$stats %||% "")) div(class = "c-stats mb-3", r$stats)
     })
 
     output$table <- renderUI({

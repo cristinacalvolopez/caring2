@@ -430,3 +430,11 @@ pre.c-code { background: #F5F5F5; border: 1px solid var(--c-border-2); border-ra
 
 /* Explicación del análisis elegido en Redes */
 .c-net-help { margin: 8px 0 0; font-size: 14px; line-height: 1.45; color: #333; }
+
+/* «Sobre tus datos» */
+.c-about { font-size: 15px; line-height: 1.5; color: #1A1A1A; }
+.c-about-sec + .c-about-sec { border-top: 1px solid #E3E3E3; margin-top: 14px; padding-top: 12px; }
+.c-about-sec h3 { font-size: 16px; font-weight: 700; color: #135DCD; margin: 0 0 6px; }
+.c-about-sec p { margin: 0 0 8px; }
+.c-about code { color: #555; font-size: 12.5px; }
+.c-about-res { background: #F5F8FE; border-left: 3px solid #2F7BEE; border-radius: 4px; padding: 8px 12px; font-size: 14px; }

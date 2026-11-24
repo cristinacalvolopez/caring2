@@ -24,32 +24,6 @@ net_help_ui <- function(type) {
   p(class = "c-net-help", h)
 }
 
-# Explorar --------------------------------------------------------------------------------------------
-explore_help <- function(kind) {
-  txt <- switch(kind %||% "",
-    cat = list("El gráfico y la tabla muestran cuántos casos hay en cada categoría.",
-               "«% válido» no cuenta los perdidos; «%» sí. Con ponderación, los recuentos son ponderados."),
-    num = list("La media es el valor promedio; la mediana deja la mitad de los casos por debajo y la mitad por encima.",
-               "La desviación típica mide cuánto se alejan los casos de la media. Si la media y la mediana están lejos, la distribución es asimétrica."),
-    catcat = list("Compara los porcentajes en el sentido indicado por la flecha: si las columnas suman 100 %, compara entre columnas a lo largo de cada fila.",
-                  "χ² (ji cuadrado) contrasta si las dos variables son independientes: si p < 0,05, la relación es estadísticamente significativa.",
-                  "La V de Cramér mide la fuerza de la relación: menos de 0,10 muy débil, hasta 0,30 débil, hasta 0,50 moderada y más, fuerte."),
-    numcat = list("Compara la media (y la mediana) de la variable numérica en cada grupo.",
-                  "El ANOVA contrasta si las medias son iguales: si p < 0,05, al menos un grupo es distinto.",
-                  "η² es la parte de la variación que explican los grupos: 0,01 pequeña, 0,06 media, 0,14 grande."),
-    numnum = list("Cada punto es un caso. La correlación de Pearson (r) mide la relación lineal, entre −1 y 1; la de Spearman (ρ), cualquier relación que siempre suba o siempre baje.",
-                  "Si p < 0,05, la relación es estadísticamente significativa. Correlación no implica causa."),
-    mr = list("En la respuesta múltiple cada caso puede marcar varias opciones.",
-              "«% de casos» suma más de 100 %; «% de respuestas» reparte el total de marcas y suma 100 %."),
-    mrcat = list("Para cada grupo, el porcentaje de casos que marca cada opción (las columnas suman más de 100 %).",
-                 "Los asteriscos señalan las opciones que difieren entre grupos: * p < 0,05, ** p < 0,01, *** p < 0,001."),
-    catcat3 = , numcat3 = list("Es la misma relación entre las dos primeras variables, calculada por separado en cada categoría de la variable de control.",
-                               "Si la relación aparece en todos los grupos, no se debe a la variable de control; si cambia o desaparece en alguno, la variable de control la modifica."),
-    NULL)
-  if (is.null(txt)) return(NULL)
-  ayuda_detalle(tags$ul(lapply(txt, tags$li)))
-}
-
 # Visita guiada ---------------------------------------------------------------------------------------
 # Cada paso: selector CSS del elemento que se resalta, título y texto. Los pasos cuyo elemento no
 # está en pantalla se saltan.

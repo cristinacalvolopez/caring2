@@ -314,6 +314,7 @@ mod_redes_server <- function(id, ctx) {
     output$net_actions <- renderUI({
       req(current$html)
       div(class = "d-flex flex-wrap gap-2",
+        actionButton(ns("about"), "Sobre tus datos", class = "btn-light-c c-about-btn"),
         actionButton(ns("fullscreen"), "Pantalla completa", class = "btn-light-c"),
         downloadButton(ns("dl_html"), "Descargar HTML", class = "btn-light-c", icon = NULL),
         actionButton(ns("show_code"), "Código R", class = "btn-light-c"),
@@ -330,6 +331,12 @@ mod_redes_server <- function(id, ctx) {
       }
       html <- paste(readLines(current$html, warn = FALSE, encoding = "UTF-8"), collapse = "\n")
       tags$iframe(class = "c-net-frame", srcdoc = html, title = current$title)
+    })
+
+    observeEvent(input$about, {
+      req(current$net)
+      about_modal(tryCatch(explain_network(data(), current$spec, current$net),
+                           error = function(e) p("No se ha podido preparar la explicación: ", error_es(e))))
     })
 
     observeEvent(input$fullscreen, {
