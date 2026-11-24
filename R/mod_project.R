@@ -60,6 +60,7 @@ mod_project_server <- function(id, con, state, base_url = reactive("")) {
       proj$results_version <- proj$results_version + 1
       state$step <- state$step_on_open %||% "datos"
       bslib::nav_select("panels", state$step)
+      state$project_loaded <- Sys.time()
     }, ignoreNULL = TRUE)
 
     # Datos de trabajo = original + receta

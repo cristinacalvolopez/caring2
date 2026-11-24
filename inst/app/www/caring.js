@@ -140,3 +140,75 @@
     });
   }).observe(document.documentElement, { subtree: true, childList: true, characterData: true });
 })();
+
+// Visita guiada: resalta un elemento y explica para qué sirve. Se muestra una vez (se recuerda en
+// este navegador) y se puede volver a ver desde Ayuda. Los pasos sin elemento visible se saltan.
+(function () {
+  var T = null;
+  function visible(el) { if (!el) return false; var r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; }
+  function done(key) { try { return localStorage.getItem("caring_tour_" + key) === "1"; } catch (e) { return false; } }
+  function mark(key) { try { localStorage.setItem("caring_tour_" + key, "1"); } catch (e) {} }
+  function close() {
+    if (!T) return;
+    mark(T.key);
+    [T.hl, T.pop].forEach(function (n) { if (n && n.parentNode) n.parentNode.removeChild(n); });
+    document.removeEventListener("keydown", T.onkey);
+    window.removeEventListener("resize", T.place);
+    if (T.prevFocus && T.prevFocus.focus) try { T.prevFocus.focus(); } catch (e) {}
+    T = null;
+  }
+  function show(i) {
+    var steps = T.steps, dir = i >= T.i ? 1 : -1;
+    while (i >= 0 && i < steps.length && !visible(document.querySelector(steps[i].sel))) i += dir;
+    if (i < 0 || i >= steps.length) return close();
+    T.i = i;
+    var el = document.querySelector(steps[i].sel);
+    el.scrollIntoView({ block: "center", behavior: "instant" in document.documentElement.style ? "instant" : "auto" });
+    var n = steps.filter(function (s) { return visible(document.querySelector(s.sel)); }).length;
+    var pos = steps.slice(0, i + 1).filter(function (s) { return visible(document.querySelector(s.sel)); }).length;
+    T.pop.innerHTML = "";
+    var h = document.createElement("h2"); h.id = "c-tour-title"; h.textContent = steps[i].title;
+    var p = document.createElement("p"); p.textContent = steps[i].text;
+    var foot = document.createElement("div"); foot.className = "c-tour-foot";
+    var cnt = document.createElement("span"); cnt.className = "small-2"; cnt.textContent = pos + " de " + n;
+    var bx = document.createElement("div"); bx.className = "d-flex gap-2";
+    function btn(txt, cls, fn) { var b = document.createElement("button"); b.type = "button"; b.className = "btn btn-sm " + cls; b.textContent = txt; b.onclick = fn; return b; }
+    if (pos > 1) bx.appendChild(btn("Anterior", "btn-light-c", function () { show(T.i - 1); }));
+    var last = pos === n;
+    var next = btn(last ? "Terminar" : "Siguiente", "btn-primary", function () { last ? close() : show(T.i + 1); });
+    bx.appendChild(next);
+    var skip = btn("Saltar la visita", "btn-link-c", close);
+    foot.appendChild(cnt); foot.appendChild(skip); foot.appendChild(bx);
+    T.pop.appendChild(h); T.pop.appendChild(p); T.pop.appendChild(foot);
+    T.place = function () {
+      var r = el.getBoundingClientRect(), pad = 6;
+      T.hl.style.left = (r.left - pad) + "px"; T.hl.style.top = (r.top - pad) + "px";
+      T.hl.style.width = (r.width + 2 * pad) + "px"; T.hl.style.height = (r.height + 2 * pad) + "px";
+      var pw = T.pop.offsetWidth, ph = T.pop.offsetHeight, vw = innerWidth, vh = innerHeight;
+      var top = r.bottom + 14 + ph < vh ? r.bottom + 14 : Math.max(10, r.top - ph - 14);
+      var left = Math.min(Math.max(10, r.left), vw - pw - 10);
+      T.pop.style.top = top + "px"; T.pop.style.left = left + "px";
+    };
+    setTimeout(function () { T && T.place(); next.focus(); }, 30);
+  }
+  window.caringTour = function (steps, key, force) {
+    if (!steps || !steps.length || (!force && done(key))) return;
+    if (T) close();
+    var hl = document.createElement("div"); hl.className = "c-tour-hl"; hl.setAttribute("aria-hidden", "true");
+    var pop = document.createElement("div"); pop.className = "c-tour-pop"; pop.setAttribute("role", "dialog");
+    pop.setAttribute("aria-modal", "false"); pop.setAttribute("aria-labelledby", "c-tour-title");
+    document.body.appendChild(hl); document.body.appendChild(pop);
+    T = { steps: steps, key: key, i: 0, hl: hl, pop: pop, prevFocus: document.activeElement };
+    T.onkey = function (e) {
+      if (e.key === "Escape") close();
+      else if (e.key === "ArrowRight") show(T.i + 1);
+      else if (e.key === "ArrowLeft") show(T.i - 1);
+    };
+    document.addEventListener("keydown", T.onkey);
+    window.addEventListener("resize", function () { T && T.place && T.place(); });
+    show(0);
+  };
+  if (window.Shiny) Shiny.addCustomMessageHandler("caring-tour", function (m) {
+    setTimeout(function () { window.caringTour(m.steps, m.key, m.force); }, m.delay || 0);
+  });
+})();

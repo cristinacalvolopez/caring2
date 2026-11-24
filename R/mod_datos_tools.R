@@ -3,7 +3,7 @@
 # unir otro archivo y libro de códigos. Se llama desde mod_datos_server().
 
 datos_tools_menu <- function(ns) {
-  div(class = "dropdown",
+  div(class = "dropdown", id = ns("tools"),
     tags$button(class = "btn btn-outline-primary dropdown-toggle", type = "button", `data-bs-toggle` = "dropdown",
                 "Herramientas"),
     tags$ul(class = "dropdown-menu dropdown-menu-end",

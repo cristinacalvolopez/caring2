@@ -21,7 +21,7 @@ topbar <- function(user, active = "projects") {
       actionLink("nav_projects", "Mis proyectos", class = paste("c-navlink", if (active == "projects") "active")),
       if (identical(user$rol, "admin"))
         actionLink("nav_admin", "Administración", class = paste("c-navlink", if (active == "admin") "active")),
-      tags$a(href = "#", class = "c-navlink", onclick = "Shiny.setInputValue('show_help', Date.now()); return false;", "Ayuda"),
+      tags$a(href = "#", id = "nav_help", class = "c-navlink", onclick = "Shiny.setInputValue('show_help', Date.now()); return false;", "Ayuda"),
       div(class = "dropdown",
         tags$button(class = "c-avatar", type = "button", `data-bs-toggle` = "dropdown",
                     `aria-expanded` = "false", `aria-label` = "Mi cuenta",

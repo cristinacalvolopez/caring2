@@ -272,8 +272,28 @@ app_server <- function(input, output, session) {
     showModal(modalDialog(title = "Privacidad", easyClose = TRUE, privacy_text(), footer = modalButton("Cerrar")))
   })
   observeEvent(input$show_help, {
-    showModal(modalDialog(title = "Cómo funciona CARING", size = "l", easyClose = TRUE, help_text(), footer = modalButton("Cerrar")))
+    showModal(modalDialog(title = "Cómo funciona CARING", size = "l", easyClose = TRUE, help_text(),
+      footer = tagList(actionButton("tour_start", "Ver la visita guiada", class = "btn-outline-primary"), modalButton("Cerrar"))))
   })
+  observeEvent(input$tour_start, {
+    removeModal()
+    donde <- if (identical(state$page, "project")) "proyecto" else "inicio"
+    if (donde == "proyecto" && !identical(state$step, "datos")) {
+      state$goto_step <- "datos"          # la visita empieza en el paso Datos
+    }
+    session$sendCustomMessage("caring-tour", list(steps = tour_steps(donde), key = donde, force = TRUE, delay = 600))
+  })
+  # Primera vez: visita de la página de proyectos y, al abrir un proyecto, la del proyecto
+  observeEvent(state$page, {
+    if (identical(state$page, "projects") && !is.null(state$user) && !identical(state$user$rol, "invitado")) {
+      session$sendCustomMessage("caring-tour", list(steps = tour_steps("inicio"), key = "inicio", force = FALSE, delay = 1200))
+    }
+  })
+  observeEvent(state$project_loaded, {
+    if (identical(state$step, "datos")) {
+      session$sendCustomMessage("caring-tour", list(steps = tour_steps("proyecto"), key = "proyecto", force = FALSE, delay = 1500))
+    }
+  }, ignoreInit = TRUE)
 }
 
 help_text <- function() {

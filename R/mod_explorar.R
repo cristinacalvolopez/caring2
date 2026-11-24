@@ -161,7 +161,9 @@ mod_explorar_server <- function(id, ctx) {
     output$stats <- renderUI({
       r <- result()
       if (!is.null(r$error)) return(div(class = "c-msg-error", r$error))
-      if (nzchar(r$stats %||% "")) div(class = "c-stats mb-3", r$stats)
+      tagList(
+        if (nzchar(r$stats %||% "")) div(class = "c-stats mb-2", r$stats),
+        div(class = "mb-3", explore_help(r$kind %||% tryCatch(kind(), error = function(e) NULL))))
     })
 
     output$table <- renderUI({

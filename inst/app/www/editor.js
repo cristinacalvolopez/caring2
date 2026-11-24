@@ -360,8 +360,8 @@
       n.appendChild(h("div", { "class": "ed-pnum " + (E.doc.type === "report" ? "center" : "right"),
         style: "color:" + (isLightColor(p.bg) ? "#555555" : "#FFFFFF"), text: String(idx + 1) }));
     }
-    // «Elaborado con CARING» en la primera diapositiva: no es un elemento, no se puede borrar
-    if (E.doc.type !== "report" && p === E.doc.pages[0]) {
+    // «Elaborado con CARING» en la primera página o diapositiva: no es un elemento, no se puede borrar
+    if (p === E.doc.pages[0]) {
       var claro = isLightColor(p.bg);
       n.appendChild(h("div", { "class": "ed-brand", style: "color:" + (claro ? "#555555" : "#FFFFFF"), title: "Marca de CARING (fija)" }, [
         h("span", { text: "Elaborado con" }),

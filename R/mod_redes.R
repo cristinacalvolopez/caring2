@@ -57,8 +57,16 @@ mod_redes_server <- function(id, ctx) {
                         selected = if (isTRUE(input$weight %in% nums)) input$weight else "")
     })
 
+    observeEvent(ctx$state$redes_preset, {
+      pr <- ctx$state$redes_preset
+      req(pr$type %in% names(net_types))
+      updateSelectInput(session, "type", selected = pr$type)
+      ctx$state$redes_preset <- NULL
+    })
+
     output$type_desc <- renderUI({
-      p(class = "c-hint", style = "margin:-4px 0 0", net_types[[input$type %||% "factorial"]]$desc)
+      tagList(p(class = "c-hint", style = "margin:-4px 0 0", net_types[[input$type %||% "factorial"]]$desc),
+              net_help_ui(input$type %||% "factorial"))
     })
 
     output$var_inputs <- renderUI({
@@ -76,14 +84,23 @@ mod_redes_server <- function(id, ctx) {
       todas <- labelled_choices(d, names(d))
       tiempos <- labelled_choices(d, names(d)[vapply(d, function(x) is.numeric(x) || inherits(x, c("Date", "POSIXct")), logical(1))])
       sel_keep <- function(id, choices, default = NULL) { v <- isolate(input[[id]]); if (isTRUE(v %in% choices)) v else default }
+      # primera variable cuyo nombre se parece a alguno de los dados (nombre, inicio, fin, grupo)
+      adivina <- function(choices, pat, default) {
+        hit <- choices[grepl(pat, choices, ignore.case = TRUE)]
+        if (length(hit)) hit[1] else default
+      }
       switch(t,
         evolucion = tagList(
           p(class = "c-hint", "Cada caso es un periodo: por ejemplo, personas (nacimiento y muerte), cargos, legislaturas o contratos."),
-          selectInput(ns("t_name"), "Nombre de cada caso", todas, selected = sel_keep("t_name", todas, todas[1])),
-          selectInput(ns("t_start"), "Inicio (año o fecha)", tiempos, selected = sel_keep("t_start", tiempos, tiempos[1])),
-          selectInput(ns("t_end"), "Fin (año o fecha)", tiempos, selected = sel_keep("t_end", tiempos, tiempos[min(2, length(tiempos))])),
+          selectInput(ns("t_name"), "Nombre de cada caso", todas,
+                      selected = sel_keep("t_name", todas, adivina(todas, "^(nombre|name|titulo|caso|persona)", todas[1]))),
+          selectInput(ns("t_start"), "Inicio (año o fecha)", tiempos,
+                      selected = sel_keep("t_start", tiempos, adivina(tiempos, "nacim|inicio|start|birth|desde|alta", tiempos[1]))),
+          selectInput(ns("t_end"), "Fin (año o fecha)", tiempos,
+                      selected = sel_keep("t_end", tiempos, adivina(tiempos, "muerte|fallec|fin|end|death|hasta|baja", tiempos[min(2, length(tiempos))]))),
           p(class = "c-hint", style = "margin-top:-8px", "Si falta el fin, el periodo llega hasta el último año de los datos."),
-          selectInput(ns("t_group"), "Color según (opcional)", c("Ninguno" = "", cats, txt), selected = sel_keep("t_group", c(cats, txt), "")),
+          selectInput(ns("t_group"), "Color según (opcional)", c("Ninguno" = "", cats, txt),
+                      selected = sel_keep("t_group", c(cats, txt), adivina(cats, "escuela|grupo|group|tipo|partido|corriente", ""))),
           selectInput(ns("t_info"), "Texto al pulsar un caso (opcional)", c("Ninguno" = "", todas), selected = sel_keep("t_info", todas, ""))),
         trayectorias = tagList(
           textAreaInput(ns("model"), "Modelo", rows = 6, value = isolate(input$model) %||% "",

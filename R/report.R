@@ -160,7 +160,7 @@ export_html <- function(dir, doc, file, present = FALSE, static = FALSE, interac
       }
       sprintf('<div class="el" style="%s">%s</div>', st, inner)
     })
-    marca <- if (slides && i == 1) brand_html(p$bg) else ""
+    marca <- if (i == 1) brand_html(p$bg) else ""
     if (isTRUE(doc$page_numbers) && i > 1) {
       marca <- paste0(marca, sprintf('<div class="pnum %s" style="color:%s">%d</div>', if (slides) "right" else "center",
                                      if (is_light(css_color(p$bg, "#FFFFFF"))) "#555555" else "#FFFFFF", i))
@@ -264,7 +264,7 @@ export_pptx <- function(dir, doc, file) {
       pp <- officer::ph_with(pp, officer::block_list(officer::fpar("")),
                              location = officer::ph_location(left = 0, top = 0, width = 13.333, height = 7.5, bg = p$bg))
     }
-    marca <- if (ip == 1 && !identical(doc$type, "report")) list(list(kind = "brand", bg = p$bg))
+    marca <- if (ip == 1) list(list(kind = "brand", bg = p$bg))
     if (isTRUE(doc$page_numbers) && ip > 1) {
       claro <- is_light(css_color(p$bg, "#FFFFFF"))
       sz <- page_size(doc$type)
@@ -277,12 +277,13 @@ export_pptx <- function(dir, doc, file) {
       if (identical(e$kind, "brand")) {
         # «Elaborado con CARING» en la primera diapositiva (no es un elemento editable)
         claro <- is_light(css_color(e$bg, "#FFFFFF"))
+        psz <- page_size(doc$type)
         pp <- officer::ph_with(pp, officer::fpar(officer::ftext("Elaborado con",
                  officer::fp_text(font.size = 9, color = if (claro) "#555555" else "#FFFFFF", font.family = "Arial")),
                  fp_p = officer::fp_par(text.align = "right")),
-                 location = officer::ph_location(left = inch(960 - 16 - 66 - 96), top = inch(540 - 12 - 22), width = inch(92), height = inch(22)))
+                 location = officer::ph_location(left = inch(psz[["w"]] - 16 - 66 - 96), top = inch(psz[["h"]] - 12 - 22), width = inch(92), height = inch(22)))
         pp <- officer::ph_with(pp, officer::external_img(brand_logo(claro), width = inch(66), height = inch(20)),
-                               location = officer::ph_location(left = inch(960 - 16 - 66), top = inch(540 - 12 - 20),
+                               location = officer::ph_location(left = inch(psz[["w"]] - 16 - 66), top = inch(psz[["h"]] - 12 - 20),
                                                                width = inch(66), height = inch(20)), use_loc_size = TRUE)
         next
       }
@@ -449,12 +450,17 @@ fit_image <- function(png, w, h) {
 # Word: los elementos se colocan en orden de lectura (página, de arriba abajo).
 export_docx <- function(dir, doc, file) {
   dx <- officer::read_docx()
-  if (isTRUE(doc$page_numbers)) {
-    pie <- officer::block_list(officer::fpar(officer::run_word_field("PAGE", prop = officer::fp_text(font.size = 9, color = "#555555")),
-                                             fp_p = officer::fp_par(text.align = "center")))
-    dx <- officer::body_set_default_section(dx, officer::prop_section(footer_default = pie, footer_first = officer::block_list(officer::fpar("")),
-                                                                      page_size = officer::page_size(orient = "portrait")))
-  }
+  # Pie de la primera página: «Elaborado con» y el logo de CARING; en las demás, el número de página
+  marca <- officer::block_list(officer::fpar(
+    officer::ftext("Elaborado con ", officer::fp_text(font.size = 8, color = "#555555", font.family = "Arial")),
+    officer::external_img(brand_logo(TRUE), width = 0.75, height = 0.225),
+    fp_p = officer::fp_par(text.align = "right")))
+  pie <- if (isTRUE(doc$page_numbers)) {
+    officer::block_list(officer::fpar(officer::run_word_field("PAGE", prop = officer::fp_text(font.size = 9, color = "#555555")),
+                                      fp_p = officer::fp_par(text.align = "center")))
+  } else officer::block_list(officer::fpar(""))
+  dx <- officer::body_set_default_section(dx, officer::prop_section(footer_default = pie, footer_first = marca,
+                                                                    page_size = officer::page_size(orient = "portrait")))
   first <- TRUE
   for (p in doc$pages) {
     if (!first) dx <- officer::body_add_break(dx)

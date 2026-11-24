@@ -75,7 +75,9 @@ mod_projects_server <- function(id, con, state, on_open) {
           "También puedes abrir un proyecto exportado de CARING (.caring)."),
         textInput(ns("name"), "Nombre del proyecto (opcional)"),
         div(class = "c-divider", "o"),
-        actionButton(ns("demo"), "Usar los datos de demostración", class = "btn-outline-primary w-100"),
+        actionButton(ns("demo"), "Usar los datos de demostración (encuesta)", class = "btn-outline-primary w-100"),
+        actionButton(ns("demo_time"), "Datos de ejemplo de evolución temporal (sociólogos clásicos)",
+                     class = "btn-outline-primary w-100 mt-2"),
         footer = tagList(
           modalButton("Cancelar"),
           actionButton(ns("create"), "Crear proyecto", class = "btn-primary"))
@@ -102,6 +104,14 @@ mod_projects_server <- function(id, con, state, on_open) {
       if (is.null(f)) { showNotification("Elige un archivo primero.", type = "error"); return() }
       nm <- trimws(input$name %||% "")
       create(f$datapath, f$name, if (nzchar(nm)) nm)
+    })
+
+    observeEvent(input$demo_time, {
+      nm <- trimws(input$name %||% "")
+      create(ext_file("sociologos_clasicos.sav"), "sociologos_clasicos.sav", if (nzchar(nm)) nm else "Sociólogos clásicos")
+      # se abre directamente en Redes, con «Evolución temporal» elegida
+      state$step_on_open <- "redes"
+      state$redes_preset <- list(type = "evolucion", t = Sys.time())
     })
 
     observeEvent(input$demo, {
