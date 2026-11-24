@@ -426,3 +426,4 @@ pre.c-code { background: #F5F5F5; border: 1px solid var(--c-border-2); border-ra
 .c-howto-body { margin-top: 6px; color: #333; background: #F7F9FC; border-radius: 8px; padding: 8px 12px; }
 .c-howto-body ul { margin: 0; padding-left: 18px; }
 .c-howto-body li + li { margin-top: 4px; }
+.c-tour-hl { transition: none; }

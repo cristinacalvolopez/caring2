@@ -90,7 +90,7 @@ tour_steps <- function(where = "proyecto") {
     paso("#project-datos-vars", "Tus variables", "Pulsa una variable para cambiar su nombre, su etiqueta o sus categorías, recodificarla, marcar perdidos o cambiar su tipo."),
     paso("#project-datos-tools", "Herramientas", "Recodificar varias variables a la vez, invertir escalas, crear índices (con alfa de Cronbach), unir otro archivo y descargar el libro de códigos."),
     paso("#project-datos-view", "Revisar los datos", "En «Revisar» CARING busca casos repetidos, variables vacías o códigos como 99 que en realidad son «No sabe»."),
-    paso("#project-datos-history", "Historial", "Cada cambio queda aquí y se puede quitar. El archivo original nunca se modifica."),
+    paso(".c-history", "Historial", "Cada cambio queda aquí y se puede quitar. El archivo original nunca se modifica."),
     paso(".c-steps .c-step:nth-of-type(2)", "Explorar", "Elige una, dos o tres variables: CARING propone el gráfico, la tabla y la prueba estadística. Con «+ Añadir al informe» guardas el resultado."),
     paso(".c-steps .c-step:nth-of-type(3)", "Redes", "Coincidencias, correlaciones, nube de puntos, evolución temporal, ecuaciones estructurales… calculadas con netCoin."),
     paso(".c-steps .c-step:nth-of-type(4)", "Informes", "Monta diapositivas o un informe con tus resultados y descárgalo en PowerPoint, Word, PDF o HTML, o compártelo con un enlace."),

@@ -143,29 +143,70 @@
 
 // Visita guiada: resalta un elemento y explica para qué sirve. Se muestra una vez (se recuerda en
 // este navegador) y se puede volver a ver desde Ayuda. Los pasos sin elemento visible se saltan.
+// Mientras dura, la página no se desplaza: la visita lleva cada elemento a la vista (sin animación).
 (function () {
   var T = null;
   function visible(el) { if (!el) return false; var r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; }
   function done(key) { try { return localStorage.getItem("caring_tour_" + key) === "1"; } catch (e) { return false; } }
   function mark(key) { try { localStorage.setItem("caring_tour_" + key, "1"); } catch (e) {} }
+  function lockScroll(on) {
+    var de = document.documentElement, b = document.body;
+    if (on) {
+      T.saved = { de: de.style.overflow, b: b.style.overflow, sb: de.style.scrollBehavior };
+      de.style.scrollBehavior = "auto";            // sin desplazamiento animado (Bootstrap lo activa)
+      de.style.overflow = "hidden"; b.style.overflow = "hidden";
+    } else if (T && T.saved) {
+      de.style.overflow = T.saved.de; b.style.overflow = T.saved.b; de.style.scrollBehavior = T.saved.sb;
+    }
+  }
+  function stop(e) { e.preventDefault(); }
   function close() {
     if (!T) return;
     mark(T.key);
+    lockScroll(false);
     [T.hl, T.pop].forEach(function (n) { if (n && n.parentNode) n.parentNode.removeChild(n); });
-    document.removeEventListener("keydown", T.onkey);
-    window.removeEventListener("resize", T.place);
-    if (T.prevFocus && T.prevFocus.focus) try { T.prevFocus.focus(); } catch (e) {}
+    document.removeEventListener("keydown", T.onkey, true);
+    window.removeEventListener("resize", T.reflow);
+    window.removeEventListener("scroll", T.reflow, true);
+    document.removeEventListener("wheel", stop, { passive: false });
+    document.removeEventListener("touchmove", stop, { passive: false });
+    var f = T.prevFocus;
     T = null;
+    if (f && f.focus) try { f.focus(); } catch (e) {}
+  }
+  // Lleva el elemento a la vista sin animación y devuelve su posición
+  function bringIntoView(el) {
+    var r = el.getBoundingClientRect(), vh = innerHeight;
+    if (r.top < 70 || r.bottom > vh - 20) {
+      var y = window.scrollY + r.top - Math.max(80, (vh - Math.min(r.height, vh * 0.6)) / 2);
+      document.documentElement.style.overflow = "";             // permitir el salto un instante
+      window.scrollTo({ top: Math.max(0, y), left: 0, behavior: "instant" });
+      document.documentElement.style.overflow = "hidden";
+    }
+  }
+  function place() {
+    if (!T || !T.el) return;
+    var r = T.el.getBoundingClientRect(), pad = 6, vw = innerWidth, vh = innerHeight;
+    // solo la parte visible (los elementos muy altos, como la lista de variables)
+    var top = Math.max(r.top, 4), bottom = Math.min(r.bottom, vh - 4);
+    if (bottom < top) bottom = top + 20;
+    T.hl.style.left = (r.left - pad) + "px"; T.hl.style.top = (top - pad) + "px";
+    T.hl.style.width = (r.width + 2 * pad) + "px"; T.hl.style.height = (bottom - top + 2 * pad) + "px";
+    var pw = T.pop.offsetWidth, ph = T.pop.offsetHeight;
+    var y = bottom + 14 + ph <= vh - 10 ? bottom + 14 : (top - ph - 14 >= 10 ? top - ph - 14 : vh - ph - 16);
+    var x = Math.min(Math.max(10, r.left), vw - pw - 10);
+    T.pop.style.top = Math.min(Math.max(10, y), Math.max(10, vh - ph - 10)) + "px";   // siempre dentro de la pantalla
+    T.pop.style.left = Math.max(10, x) + "px";
   }
   function show(i) {
     var steps = T.steps, dir = i >= T.i ? 1 : -1;
     while (i >= 0 && i < steps.length && !visible(document.querySelector(steps[i].sel))) i += dir;
     if (i < 0 || i >= steps.length) return close();
     T.i = i;
-    var el = document.querySelector(steps[i].sel);
-    el.scrollIntoView({ block: "center", behavior: "instant" in document.documentElement.style ? "instant" : "auto" });
-    var n = steps.filter(function (s) { return visible(document.querySelector(s.sel)); }).length;
-    var pos = steps.slice(0, i + 1).filter(function (s) { return visible(document.querySelector(s.sel)); }).length;
+    T.el = document.querySelector(steps[i].sel);
+    bringIntoView(T.el);
+    var vis = steps.filter(function (s) { return visible(document.querySelector(s.sel)); });
+    var n = vis.length, pos = vis.indexOf(steps[i]) + 1;
     T.pop.innerHTML = "";
     var h = document.createElement("h2"); h.id = "c-tour-title"; h.textContent = steps[i].title;
     var p = document.createElement("p"); p.textContent = steps[i].text;
@@ -177,35 +218,32 @@
     var last = pos === n;
     var next = btn(last ? "Terminar" : "Siguiente", "btn-primary", function () { last ? close() : show(T.i + 1); });
     bx.appendChild(next);
-    var skip = btn("Saltar la visita", "btn-link-c", close);
-    foot.appendChild(cnt); foot.appendChild(skip); foot.appendChild(bx);
+    foot.appendChild(cnt); foot.appendChild(btn("Saltar la visita", "btn-link-c", close)); foot.appendChild(bx);
     T.pop.appendChild(h); T.pop.appendChild(p); T.pop.appendChild(foot);
-    T.place = function () {
-      var r = el.getBoundingClientRect(), pad = 6;
-      T.hl.style.left = (r.left - pad) + "px"; T.hl.style.top = (r.top - pad) + "px";
-      T.hl.style.width = (r.width + 2 * pad) + "px"; T.hl.style.height = (r.height + 2 * pad) + "px";
-      var pw = T.pop.offsetWidth, ph = T.pop.offsetHeight, vw = innerWidth, vh = innerHeight;
-      var top = r.bottom + 14 + ph < vh ? r.bottom + 14 : Math.max(10, r.top - ph - 14);
-      var left = Math.min(Math.max(10, r.left), vw - pw - 10);
-      T.pop.style.top = top + "px"; T.pop.style.left = left + "px";
-    };
-    setTimeout(function () { T && T.place(); next.focus(); }, 30);
+    place();
+    requestAnimationFrame(function () { place(); if (T) next.focus({ preventScroll: true }); });
   }
   window.caringTour = function (steps, key, force) {
     if (!steps || !steps.length || (!force && done(key))) return;
     if (T) close();
     var hl = document.createElement("div"); hl.className = "c-tour-hl"; hl.setAttribute("aria-hidden", "true");
     var pop = document.createElement("div"); pop.className = "c-tour-pop"; pop.setAttribute("role", "dialog");
-    pop.setAttribute("aria-modal", "false"); pop.setAttribute("aria-labelledby", "c-tour-title");
+    pop.setAttribute("aria-modal", "true"); pop.setAttribute("aria-labelledby", "c-tour-title");
     document.body.appendChild(hl); document.body.appendChild(pop);
     T = { steps: steps, key: key, i: 0, hl: hl, pop: pop, prevFocus: document.activeElement };
+    lockScroll(true);
+    T.reflow = function () { place(); };
     T.onkey = function (e) {
-      if (e.key === "Escape") close();
-      else if (e.key === "ArrowRight") show(T.i + 1);
-      else if (e.key === "ArrowLeft") show(T.i - 1);
+      if (e.key === "Escape") { e.preventDefault(); close(); }
+      else if (e.key === "ArrowRight") { e.preventDefault(); show(T.i + 1); }
+      else if (e.key === "ArrowLeft") { e.preventDefault(); show(T.i - 1); }
+      else if (["PageDown", "PageUp", "Home", "End", "ArrowDown", "ArrowUp", " "].indexOf(e.key) >= 0 && !e.target.closest(".c-tour-pop")) e.preventDefault();
     };
-    document.addEventListener("keydown", T.onkey);
-    window.addEventListener("resize", function () { T && T.place && T.place(); });
+    document.addEventListener("keydown", T.onkey, true);
+    window.addEventListener("resize", T.reflow);
+    window.addEventListener("scroll", T.reflow, true);
+    document.addEventListener("wheel", stop, { passive: false });          // la página no se mueve durante la visita
+    document.addEventListener("touchmove", stop, { passive: false });
     show(0);
   };
   if (window.Shiny) Shiny.addCustomMessageHandler("caring-tour", function (m) {
