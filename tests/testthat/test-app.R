@@ -60,6 +60,7 @@ test_that("recorrido completo en el navegador", {
 
   # Red de coincidencias
   js("Shiny.setInputValue('project-step', 'redes', {priority:'event'})"); idle(2500)
+  app$set_inputs(`project-redes-type` = "coincidencias"); idle(1500)        # la nube de puntos es la opción por defecto
   app$set_inputs(`project-redes-vars` = c("genero", "educ3", "internet", "prensa")); idle()
   app$click("project-redes-go"); idle(5000)
   expect_match(app$get_text("#project-redes-net_info"), "nodos")
