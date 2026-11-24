@@ -6,45 +6,22 @@ ayuda_detalle <- function(titulo = "¿Cómo se lee?", ...) {
 }
 
 # Redes -------------------------------------------------------------------------------------------
+# Una explicación breve y directa de cada análisis (sin desplegables ni listas).
 net_help <- list(
-  factorial = list(
-    "Cada punto es un caso. Los casos que responden de forma parecida quedan cerca; los distintos, lejos.",
-    "Los ejes resumen las variables activas: correspondencias si son cualitativas, componentes principales si son cuantitativas.",
-    "Los colores son conglomerados: grupos de casos parecidos. Las variables pasivas no cambian la nube; se ven al pulsar cada punto."),
-  coincidencias = list(
-    "Cada nodo es una categoría (por ejemplo, «Mujer» o «Usa internet: Sí»); su tamaño, cuántos casos la tienen.",
-    "Una línea une dos categorías que aparecen juntas más de lo esperado si fueran independientes (residuo de Haberman significativo).",
-    "El color indica la variable de cada categoría; si eliges comunidades, se agrupan las categorías que tienden a darse juntas. Que no haya línea no significa que nunca coincidan, sino que no lo hacen más de lo esperado."),
-  correlaciones = list(
-    "Cada nodo es una variable numérica.",
-    "Las líneas son correlaciones significativas, más gruesas cuanto más fuertes. Pulsa una línea para ver su valor: positivo si las variables aumentan juntas, negativo si una sube cuando la otra baja.",
-    "Una correlación no implica causa: solo que las variables varían juntas."),
-  loglineal = list(
-    "Cada nodo es una categoría. Las líneas son asociaciones que se mantienen al tener en cuenta todas las demás variables del modelo.",
-    "Es más exigente que la red de coincidencias: si una relación se explica por otra variable, desaparece.",
-    "Con orden 3 se buscan también relaciones entre tríos de categorías."),
-  regresion = list(
-    "Los nodos son la variable que quieres explicar y las categorías o variables explicativas.",
-    "Las líneas son efectos significativos sobre la variable explicada; pulsa una para ver el coeficiente y su signo (positivo: la aumenta; negativo: la reduce).",
-    "Cada efecto se mide manteniendo constantes las demás variables explicativas."),
-  multiple = list(
-    "Cada nodo es una opción de una pregunta de respuesta múltiple; su tamaño, cuántas personas la marcan.",
-    "Una línea une dos opciones que se marcan juntas más de lo esperado.",
-    "Si cruzas con otra variable, sus categorías aparecen con otro color y se unen a las opciones que marcan más que el resto."),
-  evolucion = list(
-    "Cada barra es un caso, desde su inicio hasta su fin; las barras que se solapan coinciden en el tiempo.",
-    "La banda de arriba resume todo el periodo; debajo, cada grupo por separado.",
-    "El color agrupa los casos (por ejemplo, por escuela). Pulsa un caso para ver su información."),
-  trayectorias = list(
-    "Las flechas van de las causas supuestas a sus efectos. El número de cada flecha es el coeficiente estandarizado (β): entre −1 y 1, más lejos de 0 cuanto más fuerte.",
-    "Verde: efecto positivo; rojo: negativo. Las variables latentes (círculos) se miden con sus indicadores.",
-    "El ajuste del modelo es aceptable si el CFI es 0,90 o más y el RMSEA 0,08 o menos. R² es la parte de cada variable que explica el modelo.")
+  factorial = "Cada punto es un caso: los que responden de forma parecida quedan cerca. Los colores son grupos de casos parecidos.",
+  coincidencias = "Cada nodo es una categoría y su tamaño indica cuántos casos la tienen. Una línea une dos categorías que aparecen juntas más de lo esperado por azar.",
+  correlaciones = "Cada nodo es una variable. Una línea une dos variables correlacionadas; cuanto más gruesa, más fuerte es la relación.",
+  loglineal = "Cada nodo es una categoría. Una línea une dos categorías asociadas entre sí, teniendo en cuenta el resto de variables del modelo.",
+  regresion = "Los nodos son la variable que quieres explicar y sus variables explicativas. Una línea indica un efecto significativo; al pulsarla ves su tamaño y su signo.",
+  multiple = "Cada nodo es una opción y su tamaño indica cuántas personas la marcan. Una línea une dos opciones que se marcan juntas más de lo esperado.",
+  evolucion = "Cada barra es un caso, desde su inicio hasta su fin. Las barras que se solapan coinciden en el tiempo.",
+  trayectorias = "Las flechas van de las causas a los efectos y su número indica la fuerza del efecto, entre −1 y 1. En verde, los efectos positivos; en rojo, los negativos."
 )
 
 net_help_ui <- function(type) {
   h <- net_help[[type]]
   if (is.null(h)) return(NULL)
-  ayuda_detalle(tags$ul(lapply(h, tags$li)))
+  p(class = "c-net-help", h)
 }
 
 # Explorar --------------------------------------------------------------------------------------------

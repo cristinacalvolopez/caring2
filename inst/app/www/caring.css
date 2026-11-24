@@ -427,3 +427,6 @@ pre.c-code { background: #F5F5F5; border: 1px solid var(--c-border-2); border-ra
 .c-howto-body ul { margin: 0; padding-left: 18px; }
 .c-howto-body li + li { margin-top: 4px; }
 .c-tour-hl { transition: none; }
+
+/* Explicación del análisis elegido en Redes */
+.c-net-help { margin: 8px 0 0; font-size: 14px; line-height: 1.45; color: #333; }
