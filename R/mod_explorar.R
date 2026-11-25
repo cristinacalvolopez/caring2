@@ -6,7 +6,7 @@ mod_explorar_ui <- function(id) {
     div(class = "c-page-title",
       div(tags$h1("Explorar"),
           div(class = "text-2", "Elige las variables: CARING propone el gráfico, la tabla y la prueba adecuados.")),
-      seg_radio(ns("mode"), c("Una variable" = "one", "Dos variables" = "two", "Tres variables" = "three"), selected = "one")
+      seg_radio(ns("mode"), label = "Número de variables", c("Una variable" = "one", "Dos variables" = "two", "Tres variables" = "three"), selected = "one")
     ),
     div(class = "row g-4",
       div(class = "col-lg-3",
@@ -26,14 +26,17 @@ mod_explorar_ui <- function(id) {
             div(tags$h2(textOutput(ns("title"), inline = TRUE)),
                 div(class = "small-2", textOutput(ns("subtitle"), inline = TRUE))),
             div(class = "d-flex gap-2 align-items-center flex-wrap",
-              div(class = "c-seg c-seg-sm", radioButtons(ns("view_mode"), NULL, inline = TRUE,
+              div(class = "c-seg c-seg-sm", radioButtons(ns("view_mode"), "Tipo de gráfico", inline = TRUE,
                 c("Interactivo" = "interactivo", "Estático" = "estatico"), selected = "interactivo")),
               actionButton(ns("about"), "Sobre tus datos", class = "btn-light-c c-about-btn"),
               downloadButton(ns("dl_png"), "PNG", class = "btn-light-c", icon = NULL),
               downloadButton(ns("dl_html"), "HTML interactivo", class = "btn-light-c", icon = NULL),
               actionButton(ns("add_plot"), "+ Añadir al informe", class = "btn-primary"))),
-          conditionalPanel("input.view_mode == 'estatico'", ns = ns, plotOutput(ns("plot"), height = "460px")),
-          conditionalPanel("input.view_mode != 'estatico'", ns = ns, plotly::plotlyOutput(ns("plotly"), height = "460px"))),
+          div(role = "figure", `aria-labelledby` = ns("title"), `aria-describedby` = ns("chart_desc"),
+            conditionalPanel("input.view_mode == 'estatico'", ns = ns, plotOutput(ns("plot"), height = "460px")),
+            conditionalPanel("input.view_mode != 'estatico'", ns = ns, plotly::plotlyOutput(ns("plotly"), height = "460px")),
+            p(id = ns("chart_desc"), class = "visually-hidden",
+              "Los mismos datos del gráfico están en la tabla de abajo. «Sobre tus datos» explica cómo leerlo."))),
         div(class = "c-card c-card-pad",
           div(class = "d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2",
             tags$h2("Tabla"),
@@ -140,7 +143,10 @@ mod_explorar_server <- function(id, ctx) {
       validate(need(is.null(r$error), r$error))
       validate(need(!is.null(r$plot), "Esta variable no tiene gráfico."))
       r$plot
-    }, res = 110)
+    }, res = 110, alt = function() {
+      r <- result()
+      paste0("Gráfico: ", r$title %||% "", ". Los datos están en la tabla de abajo.")
+    })
 
     observeEvent(input$about, {
       about_modal(tryCatch(explain_explore(data(), explore_spec(), result()),

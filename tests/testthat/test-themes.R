@@ -48,11 +48,11 @@ test_that("cambiar de estilo conserva el contenido y no duplica el decorado", {
 test_that("los documentos creados antes de los estilos se convierten", {
   viejo <- list(id = "abc", title = "Antiguo", type = "slides", mode = "free", pages = list(
     list(id = "p1", bg = "#FFFFFF", elements = list(
-      list(id = "a", kind = "shape", x = 0, y = 0, w = 960, h = 540, style = list(bg = "#2F7BEE")),
+      list(id = "a", kind = "shape", x = 0, y = 0, w = 960, h = 540, style = list(bg = "#236CDB")),
       list(id = "b", kind = "text", x = 70, y = 170, w = 820, h = 110, text = "Mi título", style = list(size = 48, bold = TRUE, color = "#FFFFFF")),
       list(id = "c", kind = "text", x = 70, y = 300, w = 820, h = 50, text = "Sub", style = list(size = 22, color = "#FFFFFF")))),
     list(id = "p2", bg = "#FFFFFF", elements = list(
-      list(id = "d", kind = "shape", x = 0, y = 0, w = 960, h = 90, style = list(bg = "#2F7BEE")),
+      list(id = "d", kind = "shape", x = 0, y = 0, w = 960, h = 90, style = list(bg = "#236CDB")),
       list(id = "e", kind = "text", x = 48, y = 18, w = 864, h = 56, text = "Título", style = list(size = 30, bold = TRUE, color = "#FFFFFF")),
       list(id = "f", kind = "text", x = 48, y = 120, w = 864, h = 300, text = "Texto", style = list(size = 20, color = "#000000"))))))
   n <- apply_theme(viejo, "academico")
@@ -61,7 +61,7 @@ test_that("los documentos creados antes de los estilos se convierten", {
   textos <- unlist(lapply(n$pages, function(p) vapply(Filter(function(e) e$kind == "text", p$elements), `[[`, "", "text")))
   expect_equal(textos, c("Mi título", "Sub", "Título", "Texto"))
   # el decorado antiguo se ha sustituido por el del estilo académico (sin fondos azules a página completa)
-  azules <- Filter(function(e) e$kind == "shape" && identical(e$style$bg, "#2F7BEE") && e$w >= 960, n$pages[[1]]$elements)
+  azules <- Filter(function(e) e$kind == "shape" && identical(e$style$bg, "#236CDB") && e$w >= 960, n$pages[[1]]$elements)
   expect_length(azules, 0)
   t2 <- Filter(function(e) identical(e$text, "Título"), n$pages[[2]]$elements)[[1]]
   expect_equal(t2$style$color, caring_themes$academico$title)

@@ -5,7 +5,7 @@ mod_datos_ui <- function(id) {
   div(class = "c-main",
     div(class = "c-page-title",
       div(tags$h1("Datos"), div(class = "text-2", textOutput(ns("summary"), inline = TRUE))),
-      seg_radio(ns("view"), c("Variables" = "variables", "Tabla de casos" = "casos", "Filtrar casos" = "filtro",
+      seg_radio(ns("view"), label = "Vista de los datos", c("Variables" = "variables", "Tabla de casos" = "casos", "Filtrar casos" = "filtro",
                               "Revisar" = "revisar"))
     ),
     conditionalPanel("input.view == 'variables'", ns = ns,
@@ -20,7 +20,7 @@ mod_datos_ui <- function(id) {
                 datos_tools_menu(ns),
                 actionButton(ns("new_var"), "+ Nueva variable", class = "btn-primary"))),
             uiOutput(ns("label_notice")),
-            div(style = "padding:4px 8px 8px", reactable::reactableOutput(ns("vars")))
+            div(class = "c-rows-kbd", style = "padding:4px 8px 8px", reactable::reactableOutput(ns("vars")))
           )
         ),
         div(class = "col-lg-5",

@@ -10,7 +10,7 @@ mod_admin_ui <- function(id) {
     div(class = "row g-4",
       div(class = "col-lg-8",
         div(class = "c-card c-card-pad",
-          reactable::reactableOutput(ns("users")),
+          div(class = "c-rows-kbd", reactable::reactableOutput(ns("users"))),
           uiOutput(ns("user_actions")))),
       div(class = "col-lg-4",
         div(class = "c-card c-card-pad",

@@ -18,8 +18,8 @@ mod_projects_ui <- function(id, user) {
     div(class = "c-main overlap",
       div(class = "c-toolbar",
         div(style = "flex:1 1 260px", textInput(ns("search"), NULL, placeholder = "Buscar proyectos")),
-        seg_radio(ns("filter"), c("Todos" = "todos", "Míos" = "mios", "Compartidos conmigo" = "compartidos", "Papelera" = "papelera")),
-        div(style = "width:210px", selectInput(ns("sort"), NULL,
+        seg_radio(ns("filter"), label = "Qué proyectos mostrar", c("Todos" = "todos", "Míos" = "mios", "Compartidos conmigo" = "compartidos", "Papelera" = "papelera")),
+        div(style = "width:210px", selectInput(ns("sort"), span(class = "visually-hidden", "Ordenar los proyectos"),
           c("Última modificación" = "mod", "Nombre" = "nombre", "Fecha de creación" = "creado")))
       ),
       uiOutput(ns("grid"))

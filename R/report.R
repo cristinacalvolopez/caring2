@@ -125,7 +125,7 @@ export_html <- function(dir, doc, file, present = FALSE, static = FALSE, interac
                   text_html(e))
         },
         shape = sprintf('<div style="width:100%%;height:100%%;background:%s;%s"></div>',
-                        css_color(e$style$bg, "#2F7BEE"), shape_css(e$style$shape, e$style$radius)),
+                        css_color(e$style$bg, "#236CDB"), shape_css(e$style$shape, e$style$radius)),
         image = {
           f <- image_file(dir, e$src)
           if (is.null(f)) "" else sprintf('<img src="%s" style="width:100%%;height:100%%;object-fit:contain">', data_uri(f, mime_of(f)))
@@ -185,10 +185,10 @@ body{margin:0;background:%s;font-family:Roboto,Arial,sans-serif}
 .brand img{height:20px;width:auto;display:block}
 .pnum{position:absolute;bottom:12px;font-size:12px;z-index:40}.pnum.right{right:16px}.pnum.center{left:0;right:0;text-align:center}
 .mk{border-radius:2px;padding:0 1px}
-.c-table{width:100%%;border-collapse:collapse}.c-table th{background:var(--th,#2F7BEE);color:var(--thc,#fff);padding:4px 8px;text-align:left}
+.c-table{width:100%%;border-collapse:collapse}.c-table th{background:var(--th,#236CDB);color:var(--thc,#fff);padding:4px 8px;text-align:left}
 .c-table td{padding:4px 8px;border-top:1px solid #E3E3E3}.c-table .num{text-align:right}
-.net-open{position:absolute;right:6px;bottom:6px;background:#2F7BEE;color:#fff;border:0;border-radius:5px;padding:6px 10px;font:inherit;font-size:13px;cursor:pointer}
-.net-open:hover{background:#135DCD}
+.net-open{position:absolute;right:6px;bottom:6px;background:#236CDB;color:#fff;border:0;border-radius:5px;padding:6px 10px;font:inherit;font-size:13px;cursor:pointer}
+.net-open:hover{background:#1257C2}
 #netbox{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;z-index:99;padding:3vh 3vw}
 #netbox.on{display:block}#netbox iframe{width:100%%;height:100%%;border:0;background:#fff;border-radius:5px}
 #netbox button{position:absolute;top:calc(3vh - 14px);right:calc(3vw - 14px);width:32px;height:32px;border-radius:50%%;border:0;background:#fff;font-size:18px;cursor:pointer}
@@ -291,16 +291,16 @@ export_pptx <- function(dir, doc, file) {
       if (e$kind == "shape") {
         forma <- e$style$shape %||% "rect"
         if (!identical(forma, "rect")) {
-          img <- shape_png(e$w, e$h, forma, css_color(e$style$bg, "#2F7BEE"))
+          img <- shape_png(e$w, e$h, forma, css_color(e$style$bg, "#236CDB"))
           pp <- officer::ph_with(pp, officer::external_img(img, width = inch(e$w), height = inch(e$h)),
                                  location = do.call(officer::ph_location, loc_args), use_loc_size = TRUE)
         } else if (isTRUE(as.numeric(e$style$radius %||% 0) > 0)) {
           # PowerPoint (vía officer) no tiene formas redondeadas: se dibujan como imagen.
-          img <- rounded_png(e$w, e$h, as.numeric(e$style$radius), css_color(e$style$bg, "#2F7BEE"))
+          img <- rounded_png(e$w, e$h, as.numeric(e$style$radius), css_color(e$style$bg, "#236CDB"))
           pp <- officer::ph_with(pp, officer::external_img(img, width = inch(e$w), height = inch(e$h)),
                                  location = do.call(officer::ph_location, loc_args), use_loc_size = TRUE)
         } else {
-          loc <- do.call(officer::ph_location, c(loc_args, list(bg = css_color(e$style$bg, "#2F7BEE"))))
+          loc <- do.call(officer::ph_location, c(loc_args, list(bg = css_color(e$style$bg, "#236CDB"))))
           pp <- officer::ph_with(pp, officer::block_list(officer::fpar("")), location = loc)
         }
       } else if (e$kind == "text") {

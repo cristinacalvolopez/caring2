@@ -234,7 +234,15 @@
     lockScroll(true);
     T.reflow = function () { place(); };
     T.onkey = function (e) {
+      if (["Escape", "ArrowRight", "ArrowLeft"].indexOf(e.key) >= 0) e.stopPropagation();   // no llegan a la página de debajo
       if (e.key === "Escape") { e.preventDefault(); close(); }
+      else if (e.key === "Tab") {                       // el foco no sale del recuadro de la visita
+        var bs = T.pop.querySelectorAll("button");
+        if (!bs.length) return;
+        var i = Array.prototype.indexOf.call(bs, document.activeElement);
+        e.preventDefault();
+        bs[(i + (e.shiftKey ? -1 : 1) + bs.length) % bs.length].focus({ preventScroll: true });
+      }
       else if (e.key === "ArrowRight") { e.preventDefault(); show(T.i + 1); }
       else if (e.key === "ArrowLeft") { e.preventDefault(); show(T.i - 1); }
       else if (["PageDown", "PageUp", "Home", "End", "ArrowDown", "ArrowUp", " "].indexOf(e.key) >= 0 && !e.target.closest(".c-tour-pop")) e.preventDefault();
@@ -248,5 +256,79 @@
   };
   if (window.Shiny) Shiny.addCustomMessageHandler("caring-tour", function (m) {
     setTimeout(function () { window.caringTour(m.steps, m.key, m.force); }, m.delay || 0);
+  });
+})();
+
+// Accesibilidad ------------------------------------------------------------------------------
+// Ajustes que Shiny y sus componentes no traen de serie: nombre de las ventanas, etiquetas de los
+// desplegables, avisos que se leen en voz alta y filas de tabla que se pueden usar con el teclado.
+(function () {
+  var uid = 0;
+  function fix(root) {
+    if (!root || !root.querySelectorAll) return;
+    // Ventanas (modales): se anuncian con su título, que pasa a ser un encabezado de nivel 2
+    var modals = Array.prototype.slice.call(root.querySelectorAll(".modal"));
+    if (root.classList && root.classList.contains("modal")) modals.push(root);
+    modals.forEach(function (m) {
+      var t = m.querySelector(".modal-title");
+      if (!t) return;
+      if (!t.id) t.id = "c-modal-title-" + (++uid);
+      m.setAttribute("aria-labelledby", t.id);
+      if (/^H[3-6]$/.test(t.tagName)) { t.setAttribute("role", "heading"); t.setAttribute("aria-level", "2"); }
+    });
+    // Desplegables con buscador (selectize): toman el texto de su etiqueta, aunque esté oculta
+    root.querySelectorAll("input[id$='-selectized']").forEach(function (inp) {
+      if (inp.getAttribute("aria-label")) return;
+      var base = inp.id.replace(/-selectized$/, "");
+      var lab = document.querySelector("label[for='" + base + "'], label[for='" + inp.id + "'], #" + CSS.escape(base) + "-label");
+      var sel = document.getElementById(base);
+      var txt = (lab && lab.textContent.trim()) || (sel && sel.getAttribute("aria-label")) || inp.getAttribute("placeholder") || "";
+      if (txt) inp.setAttribute("aria-label", txt);
+    });
+    // Pestañas ocultas sin texto (p. ej. «recuperar contraseña»): fuera del recorrido con Tab
+    root.querySelectorAll(".nav-link").forEach(function (a) {
+      if (!a.textContent.trim() && !a.getAttribute("aria-label")) { a.setAttribute("tabindex", "-1"); a.setAttribute("aria-hidden", "true"); }
+    });
+    // Filas de tabla que se abren al pulsarlas: también con Tab + Intro
+    root.querySelectorAll(".c-rows-kbd .rt-tbody .rt-tr").forEach(function (tr) {
+      if (tr.hasAttribute("tabindex") || tr.classList.contains("-padRow")) return;
+      tr.setAttribute("tabindex", "0");
+      var first = tr.querySelector(".rt-td");
+      if (first) tr.setAttribute("aria-label", "Abrir " + first.textContent.trim());
+    });
+    // Mensajes de los formularios (contraseña incorrecta, enlace enviado…): se leen al aparecer
+    root.querySelectorAll(".c-msg-error:not([aria-live]), .c-msg-ok:not([aria-live])").forEach(function (m) {
+      m.setAttribute("aria-live", m.classList.contains("c-msg-error") ? "assertive" : "polite");
+    });
+    // Ventanas de red y de informes: un título para el lector de pantalla
+    root.querySelectorAll("iframe:not([title])").forEach(function (f) { f.setAttribute("title", "Contenido incrustado"); });
+  }
+  $(document).on("keydown", ".c-rows-kbd .rt-tbody .rt-tr", function (e) {
+    if ((e.key === "Enter" || e.key === " ") && e.target === this) {
+      e.preventDefault();
+      var td = this.querySelector(".rt-td");
+      if (td) td.click();
+    }
+  });
+  // Los avisos (notificaciones) se leen en voz alta; los de error, con prioridad
+  function liveRegion() {
+    var p = document.getElementById("shiny-notification-panel");
+    if (p && !p.getAttribute("aria-live")) { p.setAttribute("aria-live", "polite"); p.setAttribute("role", "status"); }
+    if (p) p.querySelectorAll(".shiny-notification-error:not([role])").forEach(function (n) { n.setAttribute("role", "alert"); });
+  }
+  var pending = false;
+  new MutationObserver(function () {
+    if (pending) return;
+    pending = true;
+    requestAnimationFrame(function () { pending = false; fix(document); liveRegion(); });
+  }).observe(document.documentElement, { subtree: true, childList: true });
+  $(function () { fix(document); });
+  // Al abrir una ventana, el foco va dentro; al cerrarla, vuelve a donde estaba
+  var lastFocus = null;
+  $(document).on("show.bs.modal", function (e) { lastFocus = document.activeElement; fix(e.target); });
+  $(document).on("shown.bs.modal", function (e) { fix(e.target); });
+  $(document).on("hidden.bs.modal", function () {
+    if (lastFocus && document.body.contains(lastFocus) && lastFocus.focus) try { lastFocus.focus(); } catch (e) {}
+    lastFocus = null;
   });
 })();

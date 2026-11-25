@@ -38,6 +38,9 @@ topbar <- function(user, active = "projects") {
   )
 }
 
+# Enlace para saltar la barra superior e ir directo al contenido (aparece al pulsar Tab).
+skip_link <- function() tags$a(class = "c-skip", href = "#main", "Saltar al contenido")
+
 footer_bar <- function() {
   tags$footer(class = "c-footer",
     span("© 2026 proyecto netCoin · Universidad de Salamanca"),

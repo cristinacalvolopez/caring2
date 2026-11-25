@@ -1,5 +1,5 @@
 # Estilos de informes y diapositivas ---------------------------------------------------------
-# Todos siguen la identidad de CARING (azules #2F7BEE / #135DCD / #CBDEFB, Roboto).
+# Todos siguen la identidad de CARING (azules #236CDB / #1257C2 / #CBDEFB, Roboto).
 # Cada elemento de una página lleva un "role" que dice qué papel cumple:
 #   decorado: bg (fondo de página completo), band (franja del título), rule (línea), deco (adorno)
 #   texto:    title, subtitle, foot, heading (títulos dentro del contenido), body
@@ -9,44 +9,44 @@
 caring_themes <- list(
   clasico = list(
     nombre = "Clásico", desc = "El de siempre: franja azul CARING y fondo blanco.",
-    page = "#FFFFFF", text = "#000000", heading = "#135DCD", accent = "#2F7BEE",
-    band = "#2F7BEE", title = "#FFFFFF",
-    cover = "#2F7BEE", cover_text = "#FFFFFF", cover_sub = "#FFFFFF",
-    section = "#135DCD", section_text = "#FFFFFF",
+    page = "#FFFFFF", text = "#000000", heading = "#1257C2", accent = "#236CDB",
+    band = "#236CDB", title = "#FFFFFF",
+    cover = "#236CDB", cover_text = "#FFFFFF", cover_sub = "#FFFFFF",
+    section = "#1257C2", section_text = "#FFFFFF",
     result_bg = NULL, radius = 0,
-    rep_page = "#FFFFFF", rep_cover = "#2F7BEE", rep_cover_text = "#FFFFFF", rep_heading = "#135DCD", rep_text = "#000000"),
+    rep_page = "#FFFFFF", rep_cover = "#236CDB", rep_cover_text = "#FFFFFF", rep_heading = "#1257C2", rep_text = "#000000"),
   claro = list(
     nombre = "Claro", desc = "Fondos azul muy pálido y títulos en azul: luminoso y tranquilo.",
-    page = "#F7FAFF", text = "#1D2B3F", heading = "#135DCD", accent = "#2F7BEE",
-    band = "#EAF2FE", title = "#135DCD",
-    cover = "#EAF2FE", cover_text = "#135DCD", cover_sub = "#1D2B3F",
-    section = "#CBDEFB", section_text = "#135DCD",
+    page = "#F7FAFF", text = "#1D2B3F", heading = "#1257C2", accent = "#236CDB",
+    band = "#EAF2FE", title = "#1257C2",
+    cover = "#EAF2FE", cover_text = "#1257C2", cover_sub = "#1D2B3F",
+    section = "#CBDEFB", section_text = "#1257C2",
     result_bg = "#FFFFFF", radius = 10,
-    rep_page = "#FFFFFF", rep_cover = "#EAF2FE", rep_cover_text = "#135DCD", rep_heading = "#135DCD", rep_text = "#1D2B3F"),
+    rep_page = "#FFFFFF", rep_cover = "#EAF2FE", rep_cover_text = "#1257C2", rep_heading = "#1257C2", rep_text = "#1D2B3F"),
   profesional = list(
     nombre = "Profesional", desc = "Azul marino oscuro con acentos azules: sobrio y elegante.",
-    page = "#0F1E36", text = "#DCE6F5", heading = "#FFFFFF", accent = "#2F7BEE",
+    page = "#0F1E36", text = "#DCE6F5", heading = "#FFFFFF", accent = "#236CDB",
     band = NULL, title = "#FFFFFF",
     cover = "#0B1730", cover_text = "#FFFFFF", cover_sub = "#9DB7DC",
-    section = "#2F7BEE", section_text = "#FFFFFF",
+    section = "#236CDB", section_text = "#FFFFFF",
     result_bg = "#FFFFFF", radius = 4,
     rep_page = "#FFFFFF", rep_cover = "#0F1E36", rep_cover_text = "#FFFFFF", rep_heading = "#0F1E36", rep_text = "#1A1A1A"),
   divertido = list(
     nombre = "Divertido", desc = "Formas redondeadas y círculos de colores, como los nodos de una red.",
-    page = "#FFFFFF", text = "#1A1A1A", heading = "#2F7BEE", accent = "#FF7F0E",
-    band = "#2F7BEE", title = "#FFFFFF",
-    cover = "#2F7BEE", cover_text = "#FFFFFF", cover_sub = "#FFFFFF",
+    page = "#FFFFFF", text = "#1A1A1A", heading = "#236CDB", accent = "#FF7F0E",
+    band = "#236CDB", title = "#FFFFFF",
+    cover = "#236CDB", cover_text = "#FFFFFF", cover_sub = "#FFFFFF",
     section = "#FF7F0E", section_text = "#FFFFFF",
     result_bg = "#F2F7FF", radius = 18,
-    rep_page = "#FFFFFF", rep_cover = "#2F7BEE", rep_cover_text = "#FFFFFF", rep_heading = "#2F7BEE", rep_text = "#1A1A1A"),
+    rep_page = "#FFFFFF", rep_cover = "#236CDB", rep_cover_text = "#FFFFFF", rep_heading = "#236CDB", rep_text = "#1A1A1A"),
   academico = list(
     nombre = "Académico", desc = "Blanco y sobrio, con una línea fina bajo el título: para informes y artículos.",
-    page = "#FFFFFF", text = "#000000", heading = "#135DCD", accent = "#2F7BEE",
-    band = NULL, title = "#135DCD",
+    page = "#FFFFFF", text = "#000000", heading = "#1257C2", accent = "#236CDB",
+    band = NULL, title = "#1257C2",
     cover = "#FFFFFF", cover_text = "#0D1B2A", cover_sub = "#4A4A4A",
-    section = "#F5F5F5", section_text = "#135DCD",
+    section = "#F5F5F5", section_text = "#1257C2",
     result_bg = NULL, radius = 0,
-    rep_page = "#FFFFFF", rep_cover = "#FFFFFF", rep_cover_text = "#0D1B2A", rep_heading = "#135DCD", rep_text = "#000000")
+    rep_page = "#FFFFFF", rep_cover = "#FFFFFF", rep_cover_text = "#0D1B2A", rep_heading = "#1257C2", rep_text = "#000000")
 )
 
 theme_get <- function(id) caring_themes[[id %||% "clasico"]] %||% caring_themes$clasico
@@ -65,9 +65,9 @@ theme_decor <- function(theme, kind, type = "slides") {
   if (type == "report") {
     if (kind == "portada") {
       d <- list(shape(0, 0, W, 260, th$rep_cover, "band"))
-      if (theme == "academico") d <- list(shape(32, 105, 6, 130, "#2F7BEE", "rule"))
-      if (theme == "claro") d <- c(d, list(shape(0, 256, W, 4, "#2F7BEE", "rule")))
-      if (theme == "profesional") d <- c(d, list(shape(50, 236, 80, 4, "#2F7BEE", "rule")))
+      if (theme == "academico") d <- list(shape(32, 105, 6, 130, "#236CDB", "rule"))
+      if (theme == "claro") d <- c(d, list(shape(0, 256, W, 4, "#236CDB", "rule")))
+      if (theme == "profesional") d <- c(d, list(shape(50, 236, 80, 4, "#236CDB", "rule")))
       if (theme == "divertido") d <- c(d, list(
         shape(W - 170, -60, 220, 220, "#FF7F0E", "deco", 110),
         shape(W - 90, 150, 90, 90, "#2CA02C", "deco", 45)))
@@ -76,9 +76,9 @@ theme_decor <- function(theme, kind, type = "slides") {
     if (kind == "apartado") {
       return(switch(theme,
         claro = list(shape(50, 92, 495, 3, "#CBDEFB", "rule")),
-        profesional = list(shape(50, 92, 60, 4, "#2F7BEE", "rule")),
+        profesional = list(shape(50, 92, 60, 4, "#236CDB", "rule")),
         divertido = list(shape(50, 92, 40, 6, "#FF7F0E", "rule", 3)),
-        academico = list(shape(50, 92, 495, 1, "#2F7BEE", "rule")),
+        academico = list(shape(50, 92, 495, 1, "#236CDB", "rule")),
         list()))
     }
     return(list())
@@ -87,23 +87,23 @@ theme_decor <- function(theme, kind, type = "slides") {
   if (kind == "portada") {
     d <- list(shape(0, 0, W, H, th$cover, "bg"))
     d <- c(d, switch(theme,
-      claro = list(shape(0, 0, 18, H, "#2F7BEE", "deco"), shape(70, 290, 120, 5, "#2F7BEE", "rule")),
-      profesional = list(shape(0, H - 14, W, 14, "#2F7BEE", "deco"), shape(70, 290, 120, 4, "#2F7BEE", "rule")),
+      claro = list(shape(0, 0, 18, H, "#236CDB", "deco"), shape(70, 290, 120, 5, "#236CDB", "rule")),
+      profesional = list(shape(0, H - 14, W, 14, "#236CDB", "deco"), shape(70, 290, 120, 4, "#236CDB", "rule")),
       divertido = list(
         shape(W - 300, -110, 400, 400, "#FF7F0E", "deco", 200),
         shape(W - 150, 330, 190, 190, "#2CA02C", "deco", 95),
         shape(-70, 400, 210, 210, "#CBDEFB", "deco", 105),
         shape(W - 360, 360, 60, 60, "#9467BD", "deco", 30)),
-      academico = list(shape(46, 160, 8, 210, "#2F7BEE", "rule"), shape(70, 450, W - 140, 1, "#C6C6C6", "rule")),
+      academico = list(shape(46, 160, 8, 210, "#236CDB", "rule"), shape(70, 450, W - 140, 1, "#C6C6C6", "rule")),
       list()))
     return(d)
   }
   if (kind == "seccion") {
     d <- list(shape(0, 0, W, H, th$section, "bg"))
     d <- c(d, switch(theme,
-      divertido = list(shape(W - 220, -60, 280, 280, "#2F7BEE", "deco", 140),
+      divertido = list(shape(W - 220, -60, 280, 280, "#236CDB", "deco", 140),
                        shape(60, 380, 90, 90, "#FFFFFF", "deco", 45)),
-      academico = list(shape(46, 215, 8, 100, "#2F7BEE", "rule")),
+      academico = list(shape(46, 215, 8, 100, "#236CDB", "rule")),
       profesional = list(shape(70, 330, 120, 4, "#FFFFFF", "rule")),
       list()))
     return(d)
@@ -112,12 +112,12 @@ theme_decor <- function(theme, kind, type = "slides") {
   # contenido y dos columnas: franja o línea de título
   switch(theme,
     clasico = list(shape(0, 0, W, 90, th$band, "band")),
-    claro = list(shape(0, 0, W, 90, th$band, "band"), shape(0, 86, W, 4, "#2F7BEE", "rule")),
-    profesional = list(shape(48, 80, 90, 4, "#2F7BEE", "rule")),
+    claro = list(shape(0, 0, W, 90, th$band, "band"), shape(0, 86, W, 4, "#236CDB", "rule")),
+    profesional = list(shape(48, 80, 90, 4, "#236CDB", "rule")),
     divertido = list(shape(24, 14, W - 48, 72, th$band, "band", 36),
                      shape(W - 46, 480, 26, 26, "#FF7F0E", "deco", 13),
                      shape(W - 80, 494, 16, 16, "#2CA02C", "deco", 8)),
-    academico = list(shape(48, 84, W - 96, 2, "#2F7BEE", "rule")),
+    academico = list(shape(48, 84, W - 96, 2, "#236CDB", "rule")),
     list())
 }
 
@@ -271,7 +271,7 @@ theme_preview_html <- function(theme, type = "slides") {
   for (i in seq_along(hs)) {
     h <- (bx[4] - 40) * hs[i]
     chart <- c(chart, list(el("shape", bx[1] + bw * (2 * i - 1), bx[2] + bx[4] - 20 - h, bw, h,
-                              style = list(bg = if (i %% 2) "#2F7BEE" else "#FF7F0E", radius = min(th$radius, 6)))))
+                              style = list(bg = if (i %% 2) "#236CDB" else "#FF7F0E", radius = min(th$radius, 6)))))
   }
   pages[[2]]$elements <- c(pages[[2]]$elements, chart)
   scale <- if (type == "report") 0.2 else 0.18

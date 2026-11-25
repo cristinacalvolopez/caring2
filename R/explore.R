@@ -2,7 +2,7 @@
 # Cada función devuelve una lista con:
 #   title, subtitle, table (data.frame ya formateado), stats (texto), plot (ggplot)
 
-caring_blue <- "#2F7BEE"
+caring_blue <- "#236CDB"
 caring_palette <- c("#1F77B4", "#FF7F0E", "#2CA02C", "#D62728", "#9467BD",
                     "#8C564B", "#E377C2", "#7F7F7F", "#BCBD22", "#17BECF")
 
@@ -10,7 +10,7 @@ caring_palette <- c("#1F77B4", "#FF7F0E", "#2CA02C", "#D62728", "#9467BD",
 # main: color de los gráficos de una sola serie; light/dark: tonos de apoyo; low: inicio de
 # los degradados; colors: series. La activa se elige con with_palette() (por defecto, netCoin).
 chart_palettes <- list(
-  netcoin = list(nombre = "netCoin (por defecto)", main = "#2F7BEE", light = "#CBDEFB", dark = "#135DCD", low = "#EAF2FE",
+  netcoin = list(nombre = "netCoin (por defecto)", main = "#236CDB", light = "#CBDEFB", dark = "#1257C2", low = "#EAF2FE",
                  colors = caring_palette),
   azules = list(nombre = "Azules", main = "#1F5FC4", light = "#C9DAF5", dark = "#0B3D91", low = "#EEF4FE",
                 colors = c("#0B3D91", "#1F5FC4", "#3D85E0", "#73A8EE", "#A9C8F5", "#5B6C8F", "#26457A", "#8FB4E8")),

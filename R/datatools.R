@@ -327,7 +327,7 @@ write_codebook <- function(d, file, format = "docx", title = "Libro de códigos"
   mr <- codebook_mr(d)
   if (format == "xlsx") {
     wb <- openxlsx::createWorkbook()
-    hs <- openxlsx::createStyle(textDecoration = "bold", fgFill = "#2F7BEE", fontColour = "#FFFFFF")
+    hs <- openxlsx::createStyle(textDecoration = "bold", fgFill = "#236CDB", fontColour = "#FFFFFF")
     ws <- openxlsx::createStyle(wrapText = TRUE, valign = "top")
     openxlsx::addWorksheet(wb, "Variables")
     openxlsx::writeData(wb, "Variables", cb, headerStyle = hs)

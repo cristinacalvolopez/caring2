@@ -4,7 +4,7 @@
 (function () {
   "use strict";
 
-  var SWATCHES = ["#000000", "#FFFFFF", "#2F7BEE", "#135DCD", "#CBDEFB", "#6B6B6B", "#F5F5F5", "#B3261E", "#1E6B34", "#FF7F0E"];
+  var SWATCHES = ["#000000", "#FFFFFF", "#236CDB", "#1257C2", "#CBDEFB", "#6B6B6B", "#F5F5F5", "#B3261E", "#1E6B34", "#FF7F0E"];
   var TEMPLATES_SLIDES = [["portada", "Portada"], ["contenido", "Título y contenido"], ["dos_columnas", "Dos columnas"], ["seccion", "Sección"], ["blanca", "En blanco"]];
   var TEMPLATES_REPORT = [["portada", "Portada"], ["apartado", "Apartado"], ["blanca", "En blanco"]];
 
@@ -193,7 +193,7 @@
   function addShape(shape) {
     var cuadrada = shape && shape !== "rect" && shape !== "flecha";
     var slot = freeSlot(cuadrada ? 160 : 240, cuadrada ? 160 : 140);
-    var st = { bg: E.theme.accent || "#2F7BEE", radius: Math.min(E.theme.radius || 0, 20) };
+    var st = { bg: E.theme.accent || "#236CDB", radius: Math.min(E.theme.radius || 0, 20) };
     if (shape && shape !== "rect") st.shape = shape;
     addElement({ id: uid(), kind: "shape", x: slot.x, y: slot.y, w: slot.w, h: slot.h, style: st });
   }
@@ -246,6 +246,15 @@
     var n = h("div", { "class": "ed-el ed-" + e.kind + (interactive && e.id === E.sel ? " sel" : ""),
       style: "left:" + e.x + "px;top:" + e.y + "px;width:" + e.w + "px;height:" + e.h + "px;" });
     n.dataset.id = e.id;
+    if (interactive) {
+      // Manejo con teclado: Tab para ir de un elemento a otro, flechas para moverlo (Mayús: 10 px),
+      // Intro para escribir en un texto, Supr para borrarlo y Esc para soltarlo.
+      n.tabIndex = 0;
+      n.setAttribute("role", "group");
+      n.setAttribute("aria-roledescription", "elemento");
+      n.setAttribute("aria-label", elementLabel(e));
+      n.addEventListener("focus", function () { if (!E.editing && E.sel !== e.id) { E.sel = e.id; render(); } });
+    }
     if (e.kind === "text") {
       var s = e.style || {};
       var t = h("div", { "class": "ed-text", text: e.runs ? "" : (e.text || ""),
@@ -254,7 +263,7 @@
       fillRuns(t, e);
       n.appendChild(t);
     } else if (e.kind === "shape") {
-      n.style.background = (e.style && e.style.bg) || "#2F7BEE";
+      n.style.background = (e.style && e.style.bg) || "#236CDB";
       n.style.cssText += ";" + shapeCss(e.style && e.style.shape, e.style && e.style.radius);
     } else if (e.kind === "image") {
       var src = E.assets.images[e.src];
@@ -286,6 +295,14 @@
     }
     if (interactive && e.id === E.sel) n.appendChild(h("span", { "class": "ed-handle", "aria-hidden": "true" }));
     return n;
+  }
+
+  function elementLabel(e) {
+    if (e.kind === "text") return "Texto: " + shortTitle(e.text || "(vacío)", 80);
+    if (e.kind === "shape") return "Forma";
+    if (e.kind === "image") return "Imagen";
+    var r = E.assets.results[e.ref];
+    return (r && r.kind === "tabla" ? "Tabla: " : r && r.kind === "red" ? "Red: " : "Gráfico: ") + (r ? r.title : "resultado borrado");
   }
 
   // Subrayador: el texto se guarda como trozos { t: texto, m: color de fondo o null } en e.runs
@@ -380,13 +397,21 @@
   function render() {
     if (!E) return;
     var s = size();
+    // Si el foco estaba en un elemento de la página (manejo con teclado), se recupera tras redibujar
+    var ae = document.activeElement, aeEl = ae && ae.closest ? ae.closest(".ed-active .ed-el") : null, refocus = E.refocus || (aeEl ? aeEl.dataset.id : null);
+    E.refocus = null;
+    var thumbFocus = ae && ae.classList && ae.classList.contains("ed-thumb");
     // Miniaturas
     var pages = E.root.querySelector(".ed-pages-list");
     pages.innerHTML = "";
     E.doc.pages.forEach(function (p, i) {
       var sc = 150 / s.w;
+      var goPage = function () { E.page = i; E.sel = null; render(); };
       var wrap = h("div", { "class": "ed-thumb" + (i === E.page ? " on" : ""), style: "height:" + Math.round(s.h * sc + 4) + "px",
-        onclick: function () { E.page = i; E.sel = null; render(); } });
+        tabindex: "0", role: "button", "aria-current": i === E.page ? "true" : "false",
+        "aria-label": (E.doc.type === "report" ? "Ir a la página " : "Ir a la diapositiva ") + (i + 1),
+        onclick: goPage,
+        onkeydown: function (ev) { if ((ev.key === "Enter" || ev.key === " ") && ev.target === wrap) { ev.preventDefault(); goPage(); } } });
       var pn = pageNode(p, false);
       pn.style.transform = "scale(" + sc + ")";
       wrap.appendChild(h("span", { "class": "ed-num", text: String(i + 1) }));
@@ -415,6 +440,8 @@
     stage.appendChild(h("div", { "class": "ed-pageinfo", text: (E.doc.type === "report" ? "Página " : "Diapositiva ") + (E.page + 1) + " de " + E.doc.pages.length }));
     bindPage(pn);
     drawPlots();
+    if (refocus) { var rf = pn.querySelector('[data-id="' + refocus + '"]'); if (rf) rf.focus({ preventScroll: true }); }
+    else if (thumbFocus) { var tf = pages.querySelector(".ed-thumb.on"); if (tf) tf.focus({ preventScroll: true }); }
     // Modo
     E.root.querySelectorAll(".ed-mode button").forEach(function (b) { b.classList.toggle("on", b.dataset.mode === E.doc.mode); });
     var pb = E.root.querySelector(".ed-pnum-btn");
@@ -464,7 +491,7 @@
       });
       side.appendChild(fs);
       side.appendChild(h("div", { "class": "ed-label", text: "Color" }));
-      side.appendChild(swatches(e.style.bg || "#2F7BEE", function (c) { e.style.bg = c || "#2F7BEE"; commit(); render(); }));
+      side.appendChild(swatches(e.style.bg || "#236CDB", function (c) { e.style.bg = c || "#236CDB"; commit(); render(); }));
       if ((e.style.shape || "rect") === "rect") {
       var rad = h("input", { type: "range", min: "0", max: "60", value: e.style.radius || 0, "aria-label": "Redondeo" });
       rad.addEventListener("change", function () { e.style.radius = +rad.value; commit(); render(); });
@@ -615,6 +642,7 @@
       document.execCommand && document.execCommand("selectAll", false, null);
       var bar = markBar(t);
       E.root.querySelector(".ed-stage").appendChild(bar);
+      t.addEventListener("keydown", function (k) { if (k.key === "Escape") { k.preventDefault(); E.refocus = e.id; t.blur(); } });
       t.addEventListener("blur", function () {
         t.contentEditable = "false";
         E.editing = false;
@@ -646,7 +674,14 @@
     if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === "z") { ev.preventDefault(); if (ev.shiftKey) redo(); else undo(); return; }
     var e = selected();
     if (!e) return;
-    if (ev.key === "Delete" || ev.key === "Backspace") { ev.preventDefault(); removeSelected(); }
+    var onEl = ev.target.closest && ev.target.closest(".ed-active .ed-el");
+    if (ev.key === "Escape") { E.sel = null; render(); return; }
+    if (ev.key === "Enter" && onEl && e.kind === "text") {
+      ev.preventDefault();
+      onEl.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }));
+      return;
+    }
+    if ((ev.key === "Delete" || ev.key === "Backspace") && (onEl || ev.target === document.body)) { ev.preventDefault(); removeSelected(); }
     var step = ev.shiftKey ? 10 : 1, mv = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] }[ev.key];
     if (mv && E.doc.mode === "free") { ev.preventDefault(); e.x += mv[0]; e.y += mv[1]; commit(); render(); }
   });
@@ -684,7 +719,7 @@
     var root = document.getElementById(m.el);
     if (!root) { if (E && E.root) E.root.innerHTML = ""; E = null; return; }
     E = { root: root, doc: m.doc, assets: m.assets || { results: {}, images: {} }, templates: m.templates || {},
-          theme: m.theme || { text: "#000000", heading: "#135DCD", accent: "#2F7BEE", resultBg: null, radius: 0 },
+          theme: m.theme || { text: "#000000", heading: "#1257C2", accent: "#236CDB", resultBg: null, radius: 0 },
           palettes: m.palettes || null,
           inputId: m.inputId, deleteResultId: m.deleteResultId, imageInput: m.imageInput,
           page: 0, sel: null, undo: [], redo: [], last: JSON.stringify(m.doc), scale: 1 };
@@ -726,7 +761,7 @@
             text: E.doc.type === "report" ? "+ Página" : "+ Diapositiva" }),
           addMenu])
       ]),
-      h("main", { "class": "ed-stage" }),
+      h("div", { "class": "ed-stage", role: "region", "aria-label": "Página que estás editando" }),
       h("aside", { "class": "ed-side" }, [
         h("section", { "class": "c-card c-card-pad mb-3" }, [h("h2", { text: "Propiedades" }), h("div", { "class": "ed-props" })]),
         h("section", { "class": "c-card c-card-pad" }, [h("h2", { text: "Resultados del proyecto" }), h("div", { "class": "ed-results" })])

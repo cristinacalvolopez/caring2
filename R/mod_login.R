@@ -4,7 +4,7 @@ mod_login_ui <- function(id, notice = NULL, reset_token = NULL, registro_abierto
   ns <- NS(id)
   steps <- list(c("1", "Datos", "Carga y limpia"), c("2", "Explorar", "Tablas y gráficos"),
                 c("3", "Redes", "Coincidencias"), c("4", "Informes", "Diapositivas"))
-  div(class = "c-login",
+  tags$main(class = "c-login",
     div(class = "left",
       div(logo_img(50)),
       div(style = "flex-grow:1; display:flex; flex-direction:column; justify-content:center; gap:20px; max-width:560px",

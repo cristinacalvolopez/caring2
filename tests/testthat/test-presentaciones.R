@@ -74,7 +74,7 @@ test_that("formas y marca de CARING en las exportaciones", {
   expect_match(txt, "Elaborado con")
   expect_match(paste(readLines(unz(w, "word/document.xml"), warn = FALSE), collapse = ""), "titlePg")
   # fondo oscuro: logo blanco
-  expect_match(brand_html("#135DCD"), "#FFFFFF")
+  expect_match(brand_html("#1257C2"), "#FFFFFF")
   expect_match(brand_html("#FFFFFF"), "#555555")
 })
 
@@ -97,5 +97,5 @@ test_that("las tablas de los documentos también cambian de colores", {
   expect_match(st, verde, ignore.case = TRUE)
   # contraste: cabecera clara con texto oscuro
   expect_equal(table_colors("pastel")$head_text, "#1A1A1A")
-  expect_equal(table_colors(NULL)$head, "#2F7BEE")
+  expect_equal(table_colors(NULL)$head, "#236CDB")
 })

@@ -8,7 +8,7 @@ mod_redes_ui <- function(id) {
       div(class = "col-xl-3 col-lg-4",
         div(class = "c-card c-card-pad mb-3 c-analysis",
           tags$h2("¿Qué quieres ver?"),
-          selectInput(ns("type"), NULL, selected = "factorial",
+          selectInput(ns("type"), span(class = "visually-hidden", "Tipo de análisis"), selected = "factorial",
             choices = stats::setNames(types, vapply(net_types, function(x) x$titulo, ""))),
           uiOutput(ns("type_desc"))
         ),

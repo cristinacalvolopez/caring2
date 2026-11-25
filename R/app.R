@@ -9,7 +9,7 @@ get_con <- function() {
 
 caring_theme <- function() {
   bslib::bs_theme(
-    version = 5, primary = "#2F7BEE", secondary = "#6B6B6B", danger = "#B3261E", success = "#1E6B34",
+    version = 5, primary = "#236CDB", secondary = "#6B6B6B", danger = "#B3261E", success = "#1E6B34",
     "body-bg" = "#F5F5F5", "body-color" = "#000000", "border-radius" = "5px",
     base_font = bslib::font_collection("Roboto", "Arial", "sans-serif"),
     heading_font = bslib::font_collection("Roboto", "Arial", "sans-serif"),
@@ -191,8 +191,9 @@ app_server <- function(input, output, session) {
       admin = if (identical(user$rol, "admin")) mod_admin_ui("admin") else div(class = "c-main", "Sin permiso."),
       account = mod_account_ui("account", user))
     div(style = "min-height:100vh; display:flex; flex-direction:column",
+      skip_link(),
       topbar(user, active),
-      div(style = "flex-grow:1", body),
+      tags$main(id = "main", tabindex = "-1", style = "flex-grow:1; outline:none", body),
       footer_bar())
   })
 
@@ -313,7 +314,7 @@ help_text <- function() {
 # Página pública (enlace de solo lectura de un informe o presentación)
 public_page <- function(pub) {
   if (is.null(pub) || isTRUE(pub$error)) {
-    return(div(class = "c-empty", style = "padding-top:22vh",
+    return(tags$main(class = "c-empty", style = "padding-top:22vh",
       tags$img(src = "caring/img/caring-logo-azul.png", alt = "CARING", style = "height:36px"),
       tags$h1(style = "font-size:24px;margin-top:18px", "Este enlace no está disponible"),
       p("Puede que lo hayan anulado o que el documento se haya borrado. Pide un enlace nuevo a quien te lo envió.")))
@@ -323,7 +324,7 @@ public_page <- function(pub) {
   slides <- !identical(pub$doc$type, "report")
   export_html(pub$dir, pub$doc, f, present = slides, interactive = TRUE)
   html <- paste(readLines(f, warn = FALSE, encoding = "UTF-8"), collapse = "\n")
-  div(class = "c-public",
+  tags$main(class = "c-public",
     div(class = "c-public-bar",
       tags$img(src = "caring/img/caring-logo-blanco.png", alt = "CARING", style = "height:22px"),
       span(class = "c-public-title", pub$doc$title),

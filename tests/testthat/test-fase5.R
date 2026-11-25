@@ -15,7 +15,7 @@ doc_prueba <- function(dir, type = "slides") {
     list(id = "r2", kind = "result", ref = t, x = 40, y = 300, w = 400, h = 200),
     list(id = "r1", kind = "result", ref = g, x = 40, y = 40, w = 400, h = 200),
     list(id = "r3", kind = "result", ref = g, x = 500, y = 40, w = 400, h = 200)))
-  doc$pages[[3]] <- list(id = "p3", bg = "#135DCD", elements = list())
+  doc$pages[[3]] <- list(id = "p3", bg = "#1257C2", elements = list())
   list(doc = doc, g = g, t = t)
 }
 
