@@ -82,6 +82,22 @@ mod_project_server <- function(id, con, state, base_url = reactive("")) {
       persist()
       TRUE
     }
+    # Pasos que guardan un estado completo (grupos de variables, ocultas): si el último
+    # paso es del mismo tipo, se sustituye en vez de añadir otro.
+    upsert_step <- function(step) {
+      if (!can_edit(proj$permiso)) { showNotification("Este proyecto es de solo lectura.", type = "error"); return(FALSE) }
+      r <- proj$recipe
+      n <- length(r)
+      if (n && identical(r[[n]]$op, step$op)) {
+        nr <- r; nr[[n]] <- step
+        test <- tryCatch(apply_recipe(proj$original, nr, proj$dir), error = function(e) e)
+        if (inherits(test, "error")) { notify_error(test); return(FALSE) }
+        proj$recipe <- nr
+        persist()
+        return(TRUE)
+      }
+      add_step(step)
+    }
     set_recipe <- function(recipe) {
       if (!can_edit(proj$permiso)) return(FALSE)
       proj$recipe <- recipe
@@ -103,7 +119,8 @@ mod_project_server <- function(id, con, state, base_url = reactive("")) {
       proj$saved <- Sys.time()
     }
 
-    ctx <- list(con = con, state = state, proj = proj, data = data, add_step = add_step, base_url = base_url,
+    ctx <- list(con = con, state = state, proj = proj, data = data, add_step = add_step, upsert_step = upsert_step,
+                base_url = base_url,
                 set_recipe = set_recipe, results_changed = results_changed,
                 can_edit = reactive(can_edit(proj$permiso)))
 

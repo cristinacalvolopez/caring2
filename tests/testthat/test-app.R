@@ -40,7 +40,7 @@ test_that("recorrido completo en el navegador", {
   expect_match(app$get_text("#project-name"), "demostración")
 
   # Recodificar educación en tres grupos
-  js("document.querySelectorAll('#project-datos-vars .rt-tbody .rt-tr-group')[3].querySelector('.rt-td').click()"); idle()
+  js("document.querySelectorAll('#project-datos-vars .rt-tbody .rt-tr-group')[3].querySelector('.rt-td:not(.rt-td-select)').click()"); idle()
   js("document.querySelector('#project-datos-etab a[data-value=\"recode\"]').click()"); idle()
   js("Shiny.setInputValue('project-datos-grp_1', ['Sin estudios','Secundaria']);
       Shiny.setInputValue('project-datos-grp_2', ['Bachillerato o FP']);

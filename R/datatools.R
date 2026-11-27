@@ -19,16 +19,28 @@ missing_code_values <- c(-9, -8, -7, -1, 8, 9, 97, 98, 99, 997, 998, 999, 9997, 
 
 # Códigos de no-respuesta que se han quedado como números: valores típicos (99, 999, -9…)
 # claramente separados del resto de valores.
+# También los que el archivo etiqueta como no-respuesta («No sabe», «N.C.»…), aunque
+# no estén separados.
 suspicious_codes <- function(x) {
   if (!is.numeric(x)) return(numeric())
   u <- sort(unique(stats::na.omit(x)))
+  codes <- attr(x, "codes", exact = TRUE)
+  etiquetados <- if (length(codes)) {
+    nr <- grepl("^(n\\.? ?s\\.?|n\\.? ?c\\.?|ns/nc|no sab|no contest|no responde|no procede|sin respuesta|no aplicable|rechaza)",
+                trimws(tolower(names(codes))))
+    intersect(u, suppressWarnings(as.numeric(codes[nr])))
+  } else numeric()
   cand <- u[u %in% missing_code_values]
-  if (!length(cand) || length(u) < 3) return(numeric())
-  resto <- setdiff(u, cand)
-  if (!length(resto)) return(numeric())
-  lo <- min(resto); hi <- max(resto)
-  rango <- max(hi - lo, 1)
-  cand[(cand > hi + 0.5 * rango & cand > 1.5 * hi) | (cand < 0 & lo >= 0)]
+  sep <- numeric()
+  if (length(cand) && length(u) >= 3) {
+    resto <- setdiff(u, cand)
+    if (length(resto)) {
+      lo <- min(resto); hi <- max(resto)
+      rango <- max(hi - lo, 1)
+      sep <- cand[(cand > hi + 0.5 * rango & cand > 1.5 * hi) | (cand < 0 & lo >= 0)]
+    }
+  }
+  sort(union(sep, etiquetados))
 }
 
 # Lista de problemas encontrados. Cada uno: list(tipo, var, titulo, detalle, accion, n).

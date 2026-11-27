@@ -168,6 +168,7 @@
   function close() {
     if (!T) return;
     mark(T.key);
+    (T.marks || []).forEach(mark);        // visitas que esta ya incluye (p. ej. las novedades)
     lockScroll(false);
     [T.hl, T.pop].forEach(function (n) { if (n && n.parentNode) n.parentNode.removeChild(n); });
     document.removeEventListener("keydown", T.onkey, true);
@@ -228,14 +229,14 @@
     place();
     requestAnimationFrame(function () { place(); if (T) next.focus({ preventScroll: true }); });
   }
-  window.caringTour = function (steps, key, force) {
+  window.caringTour = function (steps, key, force, marks) {
     if (!steps || !steps.length || (!force && done(key))) return;
     if (T) close();
     var hl = document.createElement("div"); hl.className = "c-tour-hl"; hl.setAttribute("aria-hidden", "true");
     var pop = document.createElement("div"); pop.className = "c-tour-pop"; pop.setAttribute("role", "dialog");
     pop.setAttribute("aria-modal", "true"); pop.setAttribute("aria-labelledby", "c-tour-title");
     document.body.appendChild(hl); document.body.appendChild(pop);
-    T = { steps: steps, key: key, i: 0, hl: hl, pop: pop, prevFocus: document.activeElement };
+    T = { steps: steps, key: key, i: 0, hl: hl, pop: pop, prevFocus: document.activeElement, marks: marks || [] };
     lockScroll(true);
     T.reflow = function () { place(); };
     T.onkey = function (e) {
@@ -260,7 +261,11 @@
     show(0);
   };
   if (window.Shiny) Shiny.addCustomMessageHandler("caring-tour", function (m) {
-    setTimeout(function () { window.caringTour(m.steps, m.key, m.force); }, m.delay || 0);
+    setTimeout(function () {
+      // m.alt: otra visita para quien ya hizo esta (p. ej. las novedades); también se ve una sola vez
+      if (!m.force && m.alt && done(m.key)) window.caringTour(m.alt.steps, m.alt.key, false);
+      else window.caringTour(m.steps, m.key, m.force, m.marks);
+    }, m.delay || 0);
   });
 })();
 
@@ -298,7 +303,7 @@
     root.querySelectorAll(".c-rows-kbd .rt-tbody .rt-tr").forEach(function (tr) {
       if (tr.hasAttribute("tabindex") || tr.classList.contains("-padRow")) return;
       tr.setAttribute("tabindex", "0");
-      var first = tr.querySelector(".rt-td");
+      var first = tr.querySelector(".rt-td:not(.rt-td-select)");
       if (first) tr.setAttribute("aria-label", "Abrir " + first.textContent.trim());
     });
     // Mensajes de los formularios (contraseña incorrecta, enlace enviado…): se leen al aparecer
@@ -311,7 +316,7 @@
   $(document).on("keydown", ".c-rows-kbd .rt-tbody .rt-tr", function (e) {
     if ((e.key === "Enter" || e.key === " ") && e.target === this) {
       e.preventDefault();
-      var td = this.querySelector(".rt-td");
+      var td = this.querySelector(".rt-td:not(.rt-td-select)");   // la primera celda que no es la casilla
       if (td) td.click();
     }
   });

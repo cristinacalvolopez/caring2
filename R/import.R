@@ -56,9 +56,35 @@ read_dta_safe <- function(path) {
 }
 
 read_sav_safe <- function(path) {
-  d <- haven::read_sav(path, user_na = FALSE)
-  if (has_mojibake(d)) d <- haven::read_sav(path, user_na = FALSE, encoding = "UTF-8")
+  d <- read_sav_fecha(path, user_na = FALSE)
+  if (has_mojibake(d)) d <- read_sav_fecha(path, user_na = FALSE, encoding = "UTF-8")
   d
+}
+
+# haven::read_sav() con la fecha de la cabecera corregida.
+# La cabecera de un .sav guarda la fecha de creación como «22 Feb 26». Los ficheros
+# del CIS la traen como «22 028 26», y ReadStat (la librería de haven) escribe
+# entonces en la consola «Invalid date string (length=9): 22 028 26». Es solo un
+# metadato y los datos se leen bien, pero el mensaje sale directamente de C y no se
+# puede silenciar desde R. Si la fecha no es válida se lee una copia con la fecha
+# cambiada por «01 Jan 70», como hace sortCIS (.cis_read_sav).
+read_sav_fecha <- function(path, ...) {
+  cab <- tryCatch(readBin(path, "raw", 101L), error = function(e) raw(0))
+  fecha <- if (length(cab) == 101L) cab[93:101] else raw(0)
+  sav <- length(cab) == 101L && all(cab[1:4] != as.raw(0)) && rawToChar(cab[1:4]) %in% c("$FL2", "$FL3")
+  mala <- sav && (any(fecha == as.raw(0)) || !grepl("^[0-9]{2} [A-Za-z]{3} [0-9]{2}$", rawToChar(fecha)))
+  if (mala) {
+    tmp <- tempfile(fileext = paste0(".", tools::file_ext(path)))
+    on.exit(unlink(tmp), add = TRUE)
+    if (file.copy(path, tmp)) {
+      con <- file(tmp, "r+b")
+      seek(con, 92L, rw = "write")
+      writeBin(charToRaw("01 Jan 70"), con)
+      close(con)
+      path <- tmp
+    }
+  }
+  haven::read_sav(path, ...)
 }
 
 # Números al estilo español en texto: "1.234,50", "980,00", "-3,5".

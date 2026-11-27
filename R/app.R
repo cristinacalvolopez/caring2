@@ -282,7 +282,8 @@ app_server <- function(input, output, session) {
     if (donde == "proyecto" && !identical(state$step, "datos")) {
       state$goto_step <- "datos"          # la visita empieza en el paso Datos
     }
-    session$sendCustomMessage("caring-tour", list(steps = tour_steps(donde), key = donde, force = TRUE, delay = 600))
+    session$sendCustomMessage("caring-tour", list(steps = tour_steps(donde), key = donde, force = TRUE, delay = 600,
+                                                  marks = if (donde == "proyecto") list("variables")))
   })
   # Primera vez: visita de la página de proyectos y, al abrir un proyecto, la del proyecto
   observeEvent(state$page, {
@@ -292,7 +293,9 @@ app_server <- function(input, output, session) {
   })
   observeEvent(state$project_loaded, {
     if (identical(state$step, "datos")) {
-      session$sendCustomMessage("caring-tour", list(steps = tour_steps("proyecto"), key = "proyecto", force = FALSE, delay = 1500))
+      # quien ya hizo la visita del proyecto ve, una vez, la de las novedades de Variables
+      session$sendCustomMessage("caring-tour", list(steps = tour_steps("proyecto"), key = "proyecto", force = FALSE, delay = 1500, marks = list("variables"),
+                                                    alt = list(steps = tour_steps("variables"), key = "variables")))
     }
   }, ignoreInit = TRUE)
 }
@@ -300,11 +303,19 @@ app_server <- function(input, output, session) {
 help_text <- function() {
   tagList(
     tags$ol(
-      tags$li(tags$strong("Datos. "), "Sube tu archivo (SPSS, Stata, R, CSV, Excel…). Renombra, recodifica, marca perdidos, crea variables o filtra casos. Cada cambio queda en el historial y se puede quitar; el archivo original nunca se modifica."),
+      tags$li(tags$strong("Datos. "), "Sube tu archivo (SPSS, Stata, R, CSV, Excel…). Renombra, recodifica, marca perdidos, crea variables o filtra casos. Cada cambio queda en el historial y se puede quitar; el archivo original nunca se modifica. ",
+              "Si es un estudio del CIS, CARING te ofrece armonizar sus variables sociodemográficas (género, edad, ideología, estudios, clase…) para compararlo con otros estudios."),
       tags$li(tags$strong("Explorar. "), "Elige una variable para ver su distribución o dos para cruzarlas. CARING escoge el gráfico, la tabla y la prueba estadística."),
       tags$li(tags$strong("Redes. "), "Elige qué quieres ver (coincidencias, correlaciones, regresión…) y las variables. La red es interactiva: arrastra nodos, busca, filtra y exporta."),
       tags$li(tags$strong("Informes. "), "Con «+ Añadir al informe» guardas gráficos, tablas y redes. En Informes los colocas en diapositivas o en un informe y los exportas a PowerPoint, Word, PDF o HTML.")
     ),
+    tags$h3(class = "c-help-h", "Organizar las variables"),
+    tags$ul(
+      tags$li(tags$strong("Elegir varias. "), "En la lista de Datos, marca las casillas: aparece una barra para añadirlas a un grupo, ocultarlas, renombrarlas, moverlas o eliminarlas."),
+      tags$li(tags$strong("Grupos. "), "Reúne las variables que van juntas; una variable puede estar en varios grupos. Sirven para filtrar la lista y, en Explorar, Redes y las herramientas, para elegir un grupo entero de una vez. No cambian los datos."),
+      tags$li(tags$strong("Ocultar. "), "Una variable oculta sigue en los datos, pero no aparece en las listas de los análisis. No es lo mismo que eliminarla."),
+      tags$li(tags$strong("Renombrar y ordenar. "), "En Herramientas: renombra muchas variables con una expresión regular (con vista previa antes de aplicar) y ordénalas arrastrándolas, de la A a la Z, por grupos…"),
+      tags$li("Todo queda en el historial, se puede quitar y aparece en el script de R.")),
     p(class = "c-hint", "Las redes se calculan con el paquete de R netCoin, del proyecto netCoin de la Universidad de Salamanca. ",
       "Más información en ", tags$a(href = "https://sociocav.usal.es/blog/nca/", target = "_blank", rel = "noopener", "sociocav.usal.es/blog/nca"),
       ". Dudas y sugerencias: ", tags$a(href = "mailto:gas@usal.es", "gas@usal.es"), ".")

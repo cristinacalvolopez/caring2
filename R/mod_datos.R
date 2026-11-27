@@ -14,12 +14,13 @@ mod_datos_ui <- function(id) {
           div(class = "c-card",
             div(class = "d-flex flex-wrap gap-2 justify-content-between align-items-center",
                 style = "padding:12px 16px; border-bottom:1px solid #E3E3E3",
-              span(class = "c-hint", "Pulsa una variable para editarla."),
+              span(class = "c-hint", "Pulsa una variable para editarla; marca la casilla para elegir varias."),
               div(class = "d-flex flex-wrap gap-2",
                 actionButton(ns("new_mr"), "+ Conjunto de respuesta múltiple", class = "btn-outline-primary"),
                 datos_tools_menu(ns),
                 actionButton(ns("new_var"), "+ Nueva variable", class = "btn-primary"))),
             uiOutput(ns("label_notice")),
+            datos_vars_ui(ns),
             div(class = "c-rows-kbd", style = "padding:4px 8px 8px", reactable::reactableOutput(ns("vars")))
           )
         ),
@@ -27,6 +28,7 @@ mod_datos_ui <- function(id) {
           # Columna flotante: acompaña al usuario mientras recorre la lista de variables
           div(class = "c-sticky-col",
             div(class = "c-card c-card-pad mb-4", uiOutput(ns("editor"))),
+            div(class = "c-card c-card-pad mb-4 c-vgroups-card", uiOutput(ns("vgroups_ui"))),
             div(class = "c-card c-card-pad mb-4", uiOutput(ns("mrsets_ui"))),
             div(class = "c-card c-card-pad c-history",
               div(class = "d-flex justify-content-between align-items-center mb-2",
@@ -108,37 +110,8 @@ mod_datos_server <- function(id, ctx) {
              if (length(proj$recipe)) paste0(" · ", length(proj$recipe), " cambios") else "")
     })
 
-    # Lista de variables -----------------------------------------------------------
-    vinfo <- reactive(var_info(data()))
-
-    output$vars <- reactable::renderReactable({
-      vi <- vinfo()
-      s <- isolate(sel())
-      vi$perdidos_txt <- fmt_pct(vi$perdidos)
-      reactable::reactable(
-        vi[c("nombre", "etiqueta", "tipo", "valores", "perdidos_txt")],
-        selection = "single", searchable = TRUE, highlight = TRUE,
-        onClick = reactable::JS(sprintf(
-          "function(rowInfo) { rowInfo.toggleRowSelected(true); Shiny.setInputValue('%s', rowInfo.values.nombre, {priority: 'event'}); }",
-          ns("pick"))),
-        defaultSelected = if (!is.null(s) && s %in% vi$nombre) which(vi$nombre == s),
-        pagination = nrow(vi) > 40, defaultPageSize = 40, compact = TRUE,
-        language = reactable_es(),
-        rowStyle = list(cursor = "pointer"),
-        columns = list(
-          .selection = reactable::colDef(show = FALSE),
-          nombre = reactable::colDef(name = "Nombre", minWidth = 110,
-                                     style = list(fontFamily = "ui-monospace, Menlo, monospace", fontSize = "13px")),
-          etiqueta = reactable::colDef(name = "Etiqueta", minWidth = 150),
-          tipo = reactable::colDef(name = "Tipo", minWidth = 95, cell = function(v) type_chip(v)),
-          valores = reactable::colDef(name = "Valores", minWidth = 120),
-          perdidos_txt = reactable::colDef(name = "Perdidos", minWidth = 80, align = "right",
-            style = function(v, i) if (vi$perdidos[i] > 0.05) list(color = "#B3261E") else NULL)
-        )
-      )
-    })
-
-    observeEvent(input$pick, sel(input$pick))
+    # Lista de variables, selección de varias, grupos, ocultas, renombrar y ordenar (R/mod_datos_vars.R)
+    vars_ctx <- datos_vars_server(input, output, session, ctx, sel)
 
     # Editor de variable -------------------------------------------------------------
     output$editor <- renderUI({
@@ -305,6 +278,21 @@ mod_datos_server <- function(id, ctx) {
       v <- sel(); x <- data()[[v]]
       vals <- if (is.factor(x)) input$missing_levels else parse_numbers(input$missing_values)
       if (!length(vals)) return(showNotification("Elige al menos un valor.", type = "error"))
+      if (is.numeric(x)) {
+        # solo los que aparecen: un paso con valores que no están no cambia nada
+        hay <- vals[vals %in% x]
+        faltan <- setdiff(vals, hay)
+        if (!length(hay)) return(showNotification(paste0("Ninguno de esos valores (", paste(vals, collapse = ", "),
+                                                         ") aparece en ", v, ": no hay nada que marcar."), type = "error", duration = 8))
+        if (ctx$add_step(list(op = "missing", var = v, values = hay))) {
+          n <- sum(x %in% hay)
+          showNotification(paste0(fmt_int(n), if (n == 1) " caso marcado" else " casos marcados", " como perdido (",
+                                  paste(hay, collapse = ", "), ").",
+                                  if (length(faltan)) paste0(" No aparecen en la variable: ", paste(faltan, collapse = ", "), ".")),
+                           type = "message", duration = 8)
+        }
+        return()
+      }
       ctx$add_step(list(op = "missing", var = v, values = vals))
     })
 
@@ -402,7 +390,7 @@ mod_datos_server <- function(id, ctx) {
           div(class = "col-md-6", textInput(ns("mr_label"), "Etiqueta (opcional)", value = pre$label %||% "", placeholder = "Aficiones en el tiempo libre"))),
         radioButtons(ns("mr_type"), "¿Cómo están codificadas las respuestas?", mr_types, selected = pre$type %||% "dicotomias"),
         uiOutput(ns("mr_type_help")),
-        selectizeInput(ns("mr_vars"), "Variables", choices = names(d), selected = pre$vars, multiple = TRUE,
+        selectizeInput(ns("mr_vars"), "Variables", choices = shown_vars(d), selected = pre$vars, multiple = TRUE,
                        options = list(plugins = list("remove_button", "drag_drop"), placeholder = "Elige las variables…")),
         uiOutput(ns("mr_extra")),
         uiOutput(ns("mr_preview")),
@@ -627,13 +615,17 @@ missing_ui <- function(ns, x) {
       actionButton(ns("do_missing"), "Marcar como perdidos", class = "btn-primary w-100")
     )
   } else if (is.numeric(x)) {
-    u <- sort(unique(stats::na.omit(x)))
-    sospechosos <- u[u %in% c(-9, -8, -1, 8, 9, 97, 98, 99, 997, 998, 999, 9998, 9999, 99999)]
+    # Solo se proponen los códigos separados del resto de valores (99 en una escala de
+    # 1 a 10) o etiquetados como no-respuesta; un 99 en unos ingresos de 6 a 186 no.
+    sospechosos <- suspicious_codes(x)
     tagList(
       p(class = "c-hint", "Escribe los códigos que significan «sin respuesta», separados por comas."),
       if (length(sospechosos)) div(class = "c-stats mb-2", "Posibles códigos de no-respuesta en los datos: ",
-                                   paste(sospechosos, collapse = ", ")),
-      textInput(ns("missing_values"), "Valores", value = paste(sospechosos, collapse = ", ")),
+                                   tags$strong(paste(sospechosos, collapse = ", ")), " · ",
+                                   tags$a(href = "#", onclick = sprintf(
+                                     "event.preventDefault(); var i=document.getElementById('%s'); i.value='%s'; $(i).trigger('change');",
+                                     ns("missing_values"), paste(sospechosos, collapse = ", ")), "usar estos")),
+      textInput(ns("missing_values"), "Valores", value = "", placeholder = "por ejemplo, 98, 99"),
       actionButton(ns("do_missing"), "Marcar como perdidos", class = "btn-primary w-100")
     )
   } else {

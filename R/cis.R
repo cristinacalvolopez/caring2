@@ -16,7 +16,7 @@ es_cis <- function(path, file_name = basename(path), min_conceptos = 3) {
   ext <- file_ext(file_name)
   if (!ext %in% cis_ext || !file.exists(path)) return(NULL)
   h <- tryCatch(suppressWarnings(
-         if (ext == "dta") haven::read_dta(path, n_max = 20) else haven::read_sav(path, n_max = 20)),
+         if (ext == "dta") haven::read_dta(path, n_max = 20) else read_sav_fecha(path, n_max = 20)),
        error = function(e) NULL)
   if (is.null(h) || !ncol(h)) return(NULL)
   et <- .cis_norm(vapply(h, .cis_label, character(1)))
@@ -44,7 +44,7 @@ cis_convertido <- function(archivo, estudio = NULL) {
   utils::capture.output(conv <- suppressWarnings(cisConvert(
     archivo, output = "full", study = estudio, write = FALSE, verbose = FALSE)))
   ext <- file_ext(archivo)
-  orig <- suppressWarnings(if (ext == "dta") haven::read_dta(archivo, n_max = 0) else haven::read_sav(archivo, n_max = 0))
+  orig <- suppressWarnings(if (ext == "dta") haven::read_dta(archivo, n_max = 0) else read_sav_fecha(archivo, n_max = 0))
   conv <- standardize_data(as.data.frame(conv))
   # nuevas: las armonizadas (siempre, aunque el archivo ya traiga una con ese
   # nombre) y las escalas y Likert convertidas, que van en minúsculas. Las

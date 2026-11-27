@@ -54,3 +54,17 @@ test_that("var_info resume las variables", {
   expect_equal(vi$tipo[vi$nombre == "genero"], "categórica")
   expect_equal(vi$tipo[vi$nombre == "edad"], "numérica")
 })
+
+test_that("un .sav con la fecha de cabecera mal escrita (como los del CIS) se lee igual y sin tocarlo", {
+  f <- tempfile(fileext = ".sav")
+  haven::write_sav(data.frame(a = haven::labelled(c(1, 2, 1), c(Sí = 1, No = 2)), b = c(3.5, 4, 5)), f)
+  con <- file(f, "r+b"); seek(con, 92L, rw = "write"); writeBin(charToRaw("22 028 26"), con); close(con)
+  d <- read_any(f)
+  expect_equal(nrow(d), 3)
+  expect_equal(levels(d$a), c("Sí", "No"))
+  expect_equal(d$b, c(3.5, 4, 5))
+  expect_equal(rawToChar(readBin(f, "raw", 101)[93:101]), "22 028 26")   # el archivo original no cambia
+  # con la fecha bien escrita se lee directamente
+  g <- tempfile(fileext = ".sav"); haven::write_sav(data.frame(x = 1:2), g)
+  expect_equal(as.vector(read_sav_fecha(g)$x), c(1, 2))
+})

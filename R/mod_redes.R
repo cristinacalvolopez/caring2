@@ -46,6 +46,7 @@ mod_redes_server <- function(id, ctx) {
     current <- reactiveValues(html = NULL, net = NULL, spec = NULL, title = NULL, error = NULL)
 
     labelled_choices <- function(d, vars) {
+      vars <- shown_vars(d, vars)                  # las ocultas no se ofrecen
       if (!length(vars)) return(character())
       stats::setNames(vars, vapply(vars, function(v) {
         l <- var_label(d, v); if (l == v) v else paste0(l, " (", v, ")") }, ""))
@@ -69,6 +70,8 @@ mod_redes_server <- function(id, ctx) {
               net_help_ui(input$type %||% "factorial"))
     })
 
+    group_adder_server(input, session, "vars_grp", "vars", data, function() session$userData$vars_choices)
+
     output$var_inputs <- renderUI({
       d <- data()
       t <- input$type %||% "factorial"
@@ -76,11 +79,16 @@ mod_redes_server <- function(id, ctx) {
       nums <- labelled_choices(d, numeric_vars(d))
       txt <- labelled_choices(d, names(d)[vapply(d, is.character, logical(1))])
       prev <- isolate(input$vars)
-      multi <- function(choices, label, help) tagList(
-        selectizeInput(ns("vars"), label, choices = choices, multiple = TRUE,
-                       selected = intersect(prev, choices),
-                       options = list(plugins = list("remove_button"), placeholder = "Elige variables…")),
-        p(class = "c-hint", style = "margin-top:-8px", help))
+      session$userData$vars_choices <- NULL
+      multi <- function(choices, label, help) {
+        session$userData$vars_choices <- choices
+        tagList(
+          selectizeInput(ns("vars"), label, choices = choices, multiple = TRUE,
+                         selected = intersect(prev, choices),
+                         options = list(plugins = list("remove_button"), placeholder = "Elige variables…")),
+          group_adder_ui(ns("vars_grp"), d),
+          p(class = "c-hint", style = "margin-top:-8px", help))
+      }
       todas <- labelled_choices(d, names(d))
       tiempos <- labelled_choices(d, names(d)[vapply(d, function(x) is.numeric(x) || inherits(x, c("Date", "POSIXct")), logical(1))])
       sel_keep <- function(id, choices, default = NULL) { v <- isolate(input[[id]]); if (isTRUE(v %in% choices)) v else default }
@@ -142,6 +150,7 @@ mod_redes_server <- function(id, ctx) {
             selectizeInput(ns("vars"), "Variables activas", choices = act, multiple = TRUE,
                            selected = intersect(prev, act),
                            options = list(plugins = list("remove_button"), placeholder = "Elige variables…")),
+            { session$userData$vars_choices <- act; group_adder_ui(ns("vars_grp"), d) },
             p(class = "c-hint", style = "margin-top:-8px",
               if (ft == "mca") "Categóricas. Construyen los ejes. Las numéricas se pueden agrupar en tramos en Datos."
               else "Numéricas. Construyen los ejes."),

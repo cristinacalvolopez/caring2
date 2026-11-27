@@ -7,6 +7,11 @@ datos_tools_menu <- function(ns) {
     tags$button(class = "btn btn-outline-primary dropdown-toggle", type = "button", `data-bs-toggle` = "dropdown",
                 "Herramientas"),
     tags$ul(class = "dropdown-menu dropdown-menu-end",
+      tags$li(tags$h6(class = "dropdown-header", "Organizar")),
+      tags$li(actionLink(ns("t_regex"), "Renombrar con una expresión regular", class = "dropdown-item")),
+      tags$li(actionLink(ns("t_order"), "Ordenar las variables", class = "dropdown-item")),
+      tags$li(tags$hr(class = "dropdown-divider")),
+      tags$li(tags$h6(class = "dropdown-header", "Transformar")),
       tags$li(actionLink(ns("t_recode_many"), "Recodificar varias variables", class = "dropdown-item")),
       tags$li(actionLink(ns("t_reverse"), "Invertir escalas", class = "dropdown-item")),
       tags$li(actionLink(ns("t_index"), "Crear un índice (alfa de Cronbach)", class = "dropdown-item")),
@@ -35,11 +40,16 @@ datos_tools_server <- function(input, output, session, ctx, sel) {
       factor = vapply(d, is.factor, logical(1)),
       scale = vapply(d, function(x) is.factor(x) || is.numeric(x), logical(1)),
       vapply(d, function(x) TRUE, logical(1)))
-    v <- names(d)[keep]
+    v <- shown_vars(d, names(d)[keep])            # las ocultas no se ofrecen
     stats::setNames(v, vapply(v, function(x) {
       l <- var_label(d, x); if (identical(l, x)) x else paste0(l, " (", x, ")")
     }, ""))
   }
+
+  # «Añadir las variables de un grupo» en los selectores de varias variables
+  group_adder_server(input, session, "rm_vars_grp", "rm_vars", data, function() vars_of(data(), "factor"))
+  group_adder_server(input, session, "rev_vars_grp", "rev_vars", data, function() vars_of(data(), "scale"))
+  group_adder_server(input, session, "ix_vars_grp", "ix_vars", data, function() vars_of(data(), "scale"))
 
   # Revisar ------------------------------------------------------------------------------------
   problems <- reactive(data_problems(data()))
@@ -95,6 +105,7 @@ datos_tools_server <- function(input, output, session, ctx, sel) {
         "con las mismas respuestas). Se crea una variable nueva por cada una; las originales no se tocan."),
       selectizeInput(ns("rm_vars"), "Variables categóricas", vars_of(data(), "factor"), multiple = TRUE, width = "100%",
                      options = list(placeholder = "Elige dos o más variables")),
+      group_adder_ui(ns("rm_vars_grp"), data()),
       uiOutput(ns("rm_body")),
       footer = tagList(modalButton("Cancelar"), actionButton(ns("rm_ok"), "Crear variables", class = "btn-primary"))))
   })
@@ -145,6 +156,7 @@ datos_tools_server <- function(input, output, session, ctx, sel) {
       p(class = "c-hint", "Da la vuelta a una escala: en una de 1 a 5, el 1 pasa a ser 5 y el 5 pasa a ser 1. ",
         "Sirve para que todos los ítems de un índice vayan en el mismo sentido."),
       selectizeInput(ns("rev_vars"), "Variables (numéricas u ordinales)", vars_of(data(), "scale"), multiple = TRUE, width = "100%"),
+      group_adder_ui(ns("rev_vars_grp"), data()),
       uiOutput(ns("rev_body")),
       checkboxInput(ns("rev_replace"), "Sustituir las variables originales (si no, se crean nuevas terminadas en _inv)", FALSE),
       footer = tagList(modalButton("Cancelar"), actionButton(ns("rev_ok"), "Invertir", class = "btn-primary"))))
@@ -185,6 +197,7 @@ datos_tools_server <- function(input, output, session, ctx, sel) {
         "El alfa de Cronbach indica si los ítems miden de forma coherente lo mismo (a partir de 0,70 se considera aceptable)."),
       selectizeInput(ns("ix_vars"), "Ítems del índice", vars_of(data(), "scale"), multiple = TRUE, width = "100%",
                      options = list(placeholder = "Elige dos o más variables")),
+      group_adder_ui(ns("ix_vars_grp"), data()),
       uiOutput(ns("ix_alpha")),
       div(class = "row g-2",
         div(class = "col-md-4", textInput(ns("ix_name"), "Nombre", placeholder = "indice_confianza")),

@@ -11,6 +11,7 @@ mod_explorar_ui <- function(id) {
     div(class = "row g-4",
       div(class = "col-lg-3",
         div(class = "c-card c-card-pad",
+          uiOutput(ns("vgroup_ui")),
           selectInput(ns("v1"), "Variable", choices = NULL),
           conditionalPanel("input.mode != 'one'", ns = ns,
             selectInput(ns("v2"), "Variable en columnas", choices = NULL),
@@ -55,13 +56,24 @@ mod_explorar_server <- function(id, ctx) {
     ns <- session$ns
     data <- ctx$data
 
+    # Grupo de variables: limita las listas a las de ese grupo
+    output$vgroup_ui <- renderUI({
+      g <- vgroups(data())
+      if (!length(g)) return(NULL)
+      selectInput(ns("vgroup"), "Grupo de variables", selected = isolate(input$vgroup) %||% "",
+                  choices = c("Todas las variables" = "", stats::setNames(names(g), names(g))))
+    })
+
     var_choices <- function(d) {
-      ch <- names(d)
+      # las ocultas no se ofrecen; con un grupo elegido, solo las de ese grupo
+      ch <- shown_vars(d)
+      gsel <- input$vgroup %||% ""
+      if (nzchar(gsel) && gsel %in% names(vgroups(d))) ch <- intersect(ch, vgroup_vars(d, gsel))
       names(ch) <- vapply(ch, function(v) {
         l <- var_label(d, v)
         if (l == v) v else paste0(l, " (", v, ")")
       }, "")
-      ch <- ch[!vapply(d, function(x) inherits(x, c("Date", "POSIXct")), logical(1))]
+      ch <- ch[!vapply(d[unname(ch)], function(x) inherits(x, c("Date", "POSIXct")), logical(1))]
       sets <- mrsets(d)
       if (length(sets)) {
         mr <- stats::setNames(paste0("mr:", names(sets)), paste0("Conjunto: ", vapply(sets, mr_label, "")))
@@ -71,7 +83,7 @@ mod_explorar_server <- function(id, ctx) {
     }
     valid_choice <- function(d, v) !is.null(v) && (v %in% names(d) || (startsWith(v, "mr:") && sub("^mr:", "", v) %in% names(mrsets(d))))
 
-    observeEvent(data(), {
+    observeEvent(list(data(), input$vgroup), {
       d <- data()
       ch <- var_choices(d)
       vars_only <- ch[!startsWith(ch, "mr:")]

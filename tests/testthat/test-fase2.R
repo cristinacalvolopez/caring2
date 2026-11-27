@@ -15,6 +15,13 @@ test_that("se detectan los problemas de los datos", {
   expect_equal(cod$values, 99)
   expect_equal(suspicious_codes(c(1:10, 99)), 99)
   expect_length(suspicious_codes(c(1:100)), 0)               # 99 forma parte de la escala
+  # ingresos de 6 a 186 (datos de ejemplo): 9, 98 y 99 son ingresos, no códigos
+  expect_length(suspicious_codes(d$ingresos), 0)
+  expect_length(suspicious_codes(c(6, 9, 40, 98, 99, 120, 186)), 0)
+  # un código etiquetado como no-respuesta en el archivo se propone aunque no esté separado
+  f <- tempfile(fileext = ".sav")
+  haven::write_sav(data.frame(x = haven::labelled(c(1, 5, 8, 9, 10, 7, 9), c(`N.S.` = 9, Nada = 1))), f)
+  expect_equal(suspicious_codes(read_any(f)$x), 9)
   expect_length(data_problems(d[0, ]), 0)
 })
 

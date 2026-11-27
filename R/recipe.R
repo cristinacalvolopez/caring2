@@ -7,15 +7,22 @@
 #' @export
 apply_recipe <- function(d, recipe, dir = NULL) {
   for (s in recipe) {
-    sets <- attr(d, "mrsets", exact = TRUE)
+    antes <- lapply(stats::setNames(nm = names(meta_ops)), function(a) attr(d, a, exact = TRUE))
     d <- apply_step(d, s, dir)
-    # los conjuntos de respuesta múltiple viajan con los datos en todos los pasos
-    if (is.null(attr(d, "mrsets", exact = TRUE)) && !is.null(sets) && !s$op %in% c("mrset", "mrset_drop", "drop")) {
-      attr(d, "mrsets") <- sets
+    # los conjuntos, los grupos y las ocultas viajan con los datos en todos los pasos,
+    # salvo en los que los cambian a propósito
+    for (a in names(meta_ops)) {
+      if (is.null(attr(d, a, exact = TRUE)) && !is.null(antes[[a]]) && !s$op %in% meta_ops[[a]]) attr(d, a) <- antes[[a]]
     }
   }
   d
 }
+
+# Atributos de los datos que no son variables y pasos que los cambian
+meta_ops <- list(
+  mrsets  = c("mrset", "mrset_drop", "drop", "rename", "rename_many"),
+  vgroups = c("vgroups", "drop", "rename", "rename_many"),
+  hidden  = c("hidden", "drop", "rename", "rename_many"))
 
 need_var <- function(d, v) {
   if (is.null(v) || !v %in% names(d)) stop("La variable '", v, "' no existe.")
@@ -76,8 +83,12 @@ apply_step <- function(d, s, dir = NULL) {
     rename = {
       need_var(d, s$var); valid_new_name(d, s$to, allow = s$var)
       names(d)[names(d) == s$var] <- s$to
-      mr_rename_var(d, s$var, s$to)
+      meta_rename(d, stats::setNames(s$to, s$var))
     },
+    rename_many = rename_many(d, s$map),
+    order = order_vars(d, s$vars),
+    vgroups = vg_set(d, s),
+    hidden = hidden_set(d, s),
     mrset = mr_add(d, s),
     mrset_drop = {
       sets <- mrsets(d)
@@ -191,10 +202,10 @@ apply_step <- function(d, s, dir = NULL) {
     },
     drop = {
       for (v in s$vars) need_var(d, v)
-      sets <- attr(d, "mrsets", exact = TRUE)
+      keep <- lapply(stats::setNames(nm = names(meta_ops)), function(a) attr(d, a, exact = TRUE))
       out <- d[setdiff(names(d), s$vars)]
-      attr(out, "mrsets") <- sets
-      mr_drop_vars(out, s$vars)
+      for (a in names(keep)) attr(out, a) <- keep[[a]]
+      meta_drop(out, s$vars)
     },
     cis = {
       if (is.null(dir)) stop("Para armonizar las variables del CIS hace falta el archivo original del proyecto.")
@@ -313,6 +324,15 @@ step_label <- function(s) {
                    length(unlist(s$vars)), if (length(unlist(s$vars)) == 1) " variable)" else " variables)"),
     mrset_drop = paste0("Quitar el conjunto «", s$name, "»"),
     cis = paste0("Armonizar las variables sociodemográficas del CIS (estudio ", s$estudio, ")"),
+    rename_many = paste0("Renombrar ", length(s$map), if (length(s$map) == 1) " variable" else " variables",
+                         if (nzchar(s$pattern %||% "")) paste0(" («", s$pattern, "» → «", s$replacement %||% "", "»)")),
+    order = paste0("Ordenar las variables", if (nzchar(s$how %||% "")) paste0(" (", s$how, ")")),
+    vgroups = if (!length(s$groups)) "Grupos de variables: ninguno" else
+      paste0("Grupos de variables: ", paste(utils::head(vapply(s$groups, function(g) paste0(g$name, " (", length(unlist(g$vars)), ")"), ""), 4),
+                                            collapse = ", "), if (length(s$groups) > 4) ", …"),
+    hidden = if (!length(s$vars)) "Variables ocultas: ninguna" else
+      paste0("Variables ocultas (", length(s$vars), "): ", paste(utils::head(unlist(s$vars), 5), collapse = ", "),
+             if (length(s$vars) > 5) ", …"),
     s$op
   )
 }
@@ -388,6 +408,21 @@ step_code <- function(s) {
           paste0("conjuntos[[", q(s$name), "]] <- t(sapply(partes, function(p) as.integer(opciones %in% trimws(p))))")))
     },
     mrset_drop = paste0("conjuntos[[", q(s$name), "]] <- NULL"),
+    rename_many = {
+      m <- unlist(s$map)
+      c(if (nzchar(s$pattern %||% "")) paste0("# Con la expresión «", s$pattern, "» → «", s$replacement %||% "", "»"),
+        paste0("names(datos)[match(", qv(names(m)), ", names(datos))] <- ", qv(unname(m))))
+    },
+    order = c(paste0("orden <- ", qv(unlist(s$vars))),
+              "datos <- datos[c(orden, setdiff(names(datos), orden))]"),
+    vgroups = c("# Grupos de variables (no cambian los datos; sirven para elegir variables juntas)",
+                if (!length(s$groups)) "grupos <- list()" else
+                  c("grupos <- list(",
+                    paste0("  ", vapply(s$groups, function(g) paste0(q(g$name), " = ", qv(unlist(g$vars))), ""),
+                           c(rep(",", length(s$groups) - 1), "")),
+                    ")")),
+    hidden = c("# Variables ocultas: siguen en los datos, pero no se ofrecen en los análisis",
+               paste0("ocultas <- ", if (length(s$vars)) qv(unlist(s$vars)) else "character()")),
     cis = c("# Añade las armonizadas (genero, generacion, edad, ideologia, religion, estudios, laboral,",
             "# profesional, clase) y las escalas y Likert convertidas. Usa cisConvert() de sortCIS,",
             "# incluida en caring2, sobre el archivo original del estudio.",
