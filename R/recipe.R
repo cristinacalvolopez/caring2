@@ -196,6 +196,10 @@ apply_step <- function(d, s, dir = NULL) {
       attr(out, "mrsets") <- sets
       mr_drop_vars(out, s$vars)
     },
+    cis = {
+      if (is.null(dir)) stop("Para armonizar las variables del CIS hace falta el archivo original del proyecto.")
+      cis_armonizar(d, project_original(dir), s$estudio)
+    },
     stop("Operación desconocida: ", s$op)
   )
 }
@@ -308,6 +312,7 @@ step_label <- function(s) {
                    switch(s$type, dicotomias = "dicotomías", categorias = "categorías", "texto"), ", ",
                    length(unlist(s$vars)), if (length(unlist(s$vars)) == 1) " variable)" else " variables)"),
     mrset_drop = paste0("Quitar el conjunto «", s$name, "»"),
+    cis = paste0("Armonizar las variables sociodemográficas del CIS (estudio ", s$estudio, ")"),
     s$op
   )
 }
@@ -383,6 +388,10 @@ step_code <- function(s) {
           paste0("conjuntos[[", q(s$name), "]] <- t(sapply(partes, function(p) as.integer(opciones %in% trimws(p))))")))
     },
     mrset_drop = paste0("conjuntos[[", q(s$name), "]] <- NULL"),
+    cis = c("# Añade las armonizadas (genero, generacion, edad, ideologia, religion, estudios, laboral,",
+            "# profesional, clase) y las escalas y Likert convertidas. Usa cisConvert() de sortCIS,",
+            "# incluida en caring2, sobre el archivo original del estudio.",
+            paste0("datos <- caring2::cis_armonizar(datos, ", q(s$archivo %||% "datos.sav"), ", estudio = ", s$estudio, ")")),
     paste("#", s$op)
   )
 }

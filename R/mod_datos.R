@@ -488,10 +488,35 @@ mod_datos_server <- function(id, ctx) {
     })
 
     # Historial -------------------------------------------------------------------------
+    # Estudio del CIS: se puede añadir (o volver a añadir) el paso que armoniza las
+    # sociodemográficas. Va siempre el primero, porque trabaja sobre el archivo original.
+    cis_info <- reactive({
+      req(proj$dir)
+      tryCatch(es_cis(project_original(proj$dir), proj$info$archivo %||% ""), error = function(e) NULL)
+    })
+    cis_offer <- function() {
+      cis <- cis_info()
+      if (is.null(cis) || !ctx$can_edit() || any(vapply(proj$recipe, function(s) identical(s$op, "cis"), logical(1)))) return(NULL)
+      div(class = "c-hint mb-2", "Este archivo es el estudio del CIS n.º ", cis$estudio, ". ",
+          actionLink(ns("cis_add"), "Armonizar sus variables sociodemográficas"))
+    }
+    observeEvent(input$cis_add, {
+      cis <- cis_info()
+      req(cis)
+      nr <- c(list(cis_step(cis, proj$info$archivo)), proj$recipe)
+      test <- withProgress(message = "Armonizando las variables del CIS…", value = 0.5,
+                           tryCatch(apply_recipe(proj$original, nr, proj$dir), error = function(e) e))
+      if (inherits(test, "error")) return(showNotification(error_es(test), type = "error", duration = 10))
+      ctx$set_recipe(nr)
+      showNotification("Variables del CIS armonizadas. El paso aparece el primero en el historial.", type = "message")
+    })
+
     output$history <- renderUI({
       r <- proj$recipe
-      if (!length(r)) return(p(class = "c-hint", "Todavía no has hecho cambios. Los datos originales nunca se modifican: cada cambio queda aquí y se puede quitar."))
+      if (!length(r)) return(tagList(cis_offer(),
+        p(class = "c-hint", "Todavía no has hecho cambios. Los datos originales nunca se modifican: cada cambio queda aquí y se puede quitar.")))
       tagList(
+        cis_offer(),
         tags$ol(lapply(seq_along(r), function(i) tags$li(
           step_label(r[[i]]), " ",
           if (ctx$can_edit()) tags$a(href = "#", class = "undo small-2",

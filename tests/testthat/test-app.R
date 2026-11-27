@@ -8,7 +8,7 @@ test_that("recorrido completo en el navegador", {
   skip_if(is.null(chromote::find_chrome()), "Sin Chrome")
 
   storage <- withr::local_tempdir("caring-e2e-")
-  root <- normalizePath(testthat::test_path("..", ".."))
+  root <- normalizePath(testthat::test_path("..", ".."), winslash = "/")   # en Windows, "\" rompe la orden -e
   port <- httpuv::randomPort()
   srv <- processx::process$new(
     file.path(R.home("bin"), "Rscript"),

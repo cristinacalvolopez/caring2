@@ -70,9 +70,9 @@ h1, h2, h3, h4 { font-weight: 700; }
 
 /* Panel de proyectos */
 .c-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 20px; }
-.c-project { background: #fff; border: 1px solid var(--c-border); border-radius: 5px; overflow: hidden; display: flex; flex-direction: column; cursor: pointer; transition: box-shadow .15s; position: relative; }
+.c-project { background: #fff; border: 1px solid var(--c-border); border-radius: 5px; display: flex; flex-direction: column; cursor: pointer; transition: box-shadow .15s; position: relative; }
 .c-project:hover { box-shadow: 0 4px 14px rgba(0,0,0,.1); }
-.c-project .thumb { height: 130px; background: var(--c-bg); border-bottom: 1px solid var(--c-border-2); display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.c-project .thumb { height: 130px; background: var(--c-bg); border-bottom: 1px solid var(--c-border-2); border-radius: 4px 4px 0 0; display: flex; align-items: center; justify-content: center; overflow: hidden; }
 .c-project .thumb img { width: 100%; height: 100%; object-fit: cover; }
 .c-project .body { padding: 14px 16px; display: flex; flex-direction: column; gap: 4px; flex-grow: 1; }
 .c-project h3 { font-size: 17px; margin: 0; padding-right: 28px; }

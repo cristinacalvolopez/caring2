@@ -33,8 +33,10 @@ user_quota_mb <- function(con, user) {
 }
 
 # Crea un proyecto a partir de un archivo subido. Devuelve list(ok, id | error).
+# cis: si es un estudio del CIS (lo que devuelve es_cis()), el historial empieza con
+# el paso que armoniza sus variables sociodemográficas.
 create_project <- function(con, user, file_path, file_name, nombre = NULL,
-                           storage = caring_config()$storage) {
+                           storage = caring_config()$storage, cis = NULL) {
   ext <- file_ext(file_name)
   if (!ext %in% names(formatos_admitidos)) {
     return(list(ok = FALSE, error = paste0("Formato no admitido (.", ext, ").")))
@@ -58,13 +60,25 @@ create_project <- function(con, user, file_path, file_name, nombre = NULL,
   dir.create(file.path(dir, "redes"))
   dir.create(file.path(dir, "informes"))
   file.copy(file_path, file.path(dir, paste0("original.", ext)))
-  saveRDS(list(), file.path(dir, "receta.rds"))
+  receta <- list()
+  aviso <- NULL
+  if (!is.null(cis)) {
+    paso <- cis_step(cis, file_name)
+    r <- tryCatch(apply_step(d, paso, dir), error = function(e) e)
+    if (inherits(r, "error")) {
+      aviso <- paste("No se han podido armonizar las variables del CIS:", conditionMessage(r))
+    } else {
+      d <- r
+      receta <- list(paso)
+    }
+  }
+  saveRDS(receta, file.path(dir, "receta.rds"))
   nombre <- nombre %||% tools::file_path_sans_ext(file_name)
   db_run(con, "INSERT INTO projects (id, owner_id, nombre, archivo, n_casos, n_vars, bytes, creado, modificado)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
          list(id, user$id, nombre, file_name, nrow(d), ncol(d), dir_bytes(dir), now_utc(), now_utc()))
   audit(con, user$id, "proyecto_creado", id)
-  list(ok = TRUE, id = id)
+  list(ok = TRUE, id = id, aviso = aviso)
 }
 
 list_projects <- function(con, user_id) {

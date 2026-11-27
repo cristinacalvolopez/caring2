@@ -87,13 +87,16 @@ mod_projects_server <- function(id, con, state, on_open) {
     observeEvent(input$new2, new_modal())
     observeEvent(state$open_new_modal, { if (isTRUE(state$open_new_modal)) { state$open_new_modal <- FALSE; new_modal() } })
 
-    create <- function(path, file_name, nombre) {
+    create <- function(path, file_name, nombre, cis = NULL) {
       r <- if (identical(tolower(tools::file_ext(file_name)), "caring")) {
         withProgress(message = "Importando el proyecto…", value = 0.5, import_project(con, state$user, path, nombre))
       } else {
-        withProgress(message = "Leyendo los datos…", value = 0.5, create_project(con, state$user, path, file_name, nombre))
+        withProgress(message = if (!is.null(cis)) "Armonizando las variables del CIS…" else "Leyendo los datos…", value = 0.5,
+                     create_project(con, state$user, path, file_name, nombre, cis = cis))
       }
       if (!r$ok) { showNotification(r$error, type = "error", duration = 10); return() }
+      if (!is.null(r$aviso)) showNotification(paste(r$aviso, "El proyecto se ha creado con los datos tal cual."),
+                                              type = "warning", duration = 12)
       removeModal()
       refresh(refresh() + 1)
       on_open(r$id)
@@ -103,8 +106,35 @@ mod_projects_server <- function(id, con, state, on_open) {
       f <- input$file
       if (is.null(f)) { showNotification("Elige un archivo primero.", type = "error"); return() }
       nm <- trimws(input$name %||% "")
-      create(f$datapath, f$name, if (nzchar(nm)) nm)
+      nm <- if (nzchar(nm)) nm
+      cis <- es_cis(f$datapath, f$name)
+      if (is.null(cis)) return(create(f$datapath, f$name, nm))
+      # Estudio del CIS: se pregunta antes de armonizar
+      session$userData$cis_pending <- list(path = f$datapath, name = f$name, nombre = nm, cis = cis)
+      showModal(modalDialog(
+        title = paste0("Estudio del CIS n.º ", cis$estudio), easyClose = FALSE, size = "m",
+        p("Este archivo parece un estudio del Centro de Investigaciones Sociológicas. ",
+          "CARING puede añadir las variables sociodemográficas armonizadas con el resto de estudios del CIS ",
+          "(género, generación, edad, ideología, religión, estudios, situación laboral, situación profesional y clase subjetiva) ",
+          "y convertir las escalas y las preguntas de tipo Likert."),
+        p("Las variables originales se conservan. Se han reconocido: ",
+          tags$strong(paste(cis$conceptos, collapse = ", ")), "."),
+        p(class = "c-hint", "Queda como un paso del historial: se puede quitar y aparece en el script de R descargable. ",
+          "Lo hace la función cisConvert() de sortCIS, incluida en CARING."),
+        footer = tagList(
+          actionButton(ns("cis_no"), "No, cargarlo tal cual", class = "btn-outline-primary"),
+          actionButton(ns("cis_si"), "Sí, armonizar", class = "btn-primary"))
+      ))
     })
+
+    cis_go <- function(armonizar) {
+      pend <- session$userData$cis_pending
+      session$userData$cis_pending <- NULL
+      if (is.null(pend)) return(removeModal())
+      create(pend$path, pend$name, pend$nombre, cis = if (armonizar) pend$cis)
+    }
+    observeEvent(input$cis_si, cis_go(TRUE))
+    observeEvent(input$cis_no, cis_go(FALSE))
 
     observeEvent(input$demo_time, {
       nm <- trimws(input$name %||% "")
@@ -234,7 +264,9 @@ project_card <- function(ns, con, p) {
       if (!is.null(thumb)) tags$img(src = data_uri(thumb, "image/png"), alt = "")
       else net_placeholder_svg()),
     div(class = "dropdown", style = "position:absolute; right:8px; top:136px",
+      # strategy fixed: el menú se coloca respecto a la ventana y no lo recorta ningún contenedor
       tags$button(class = "menu-btn", style = "position:static", type = "button", `data-bs-toggle` = "dropdown",
+                  `data-bs-popper-config` = '{"strategy":"fixed"}',
                   `aria-label` = "Más opciones", HTML("&#8943;")),
       tags$ul(class = "dropdown-menu dropdown-menu-end",
         tags$li(tags$a(class = "dropdown-item", href = "#", onclick = act("open"), "Abrir")),

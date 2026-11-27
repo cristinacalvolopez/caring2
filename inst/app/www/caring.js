@@ -156,7 +156,12 @@
       de.style.scrollBehavior = "auto";            // sin desplazamiento animado (Bootstrap lo activa)
       de.style.overflow = "hidden"; b.style.overflow = "hidden";
     } else if (T && T.saved) {
-      de.style.overflow = T.saved.de; b.style.overflow = T.saved.b; de.style.scrollBehavior = T.saved.sb;
+      // Si la visita empezó mientras se cerraba una ventana, lo guardado es el bloqueo de
+      // la ventana («hidden»): no se restaura, o la página se quedaría sin desplazamiento.
+      var modal = !!document.querySelector(".modal.show");
+      de.style.overflow = T.saved.de === "hidden" && !modal ? "" : T.saved.de;
+      b.style.overflow = T.saved.b === "hidden" && !modal ? "" : T.saved.b;
+      de.style.scrollBehavior = T.saved.sb;
     }
   }
   function stop(e) { e.preventDefault(); }
@@ -330,5 +335,22 @@
   $(document).on("hidden.bs.modal", function () {
     if (lastFocus && document.body.contains(lastFocus) && lastFocus.focus) try { lastFocus.focus(); } catch (e) {}
     lastFocus = null;
+    unlock();
   });
+  // Cuando una ventana sustituye a otra (p. ej. «Nuevo proyecto» → «Estudio del CIS»),
+  // Bootstrap toma como estado normal el de la página ya bloqueada y, al cerrarlas,
+  // la deja sin desplazamiento. Si no queda ninguna ventana abierta ni la visita
+  // guiada en marcha, se devuelve el desplazamiento.
+  function unlock() {
+    setTimeout(function () {
+      if (document.querySelector(".modal.show, .modal.fade:not(.d-none)[style*='display: block']")) return;
+      if (document.getElementById("c-tour-title")) return;          // la visita bloquea el desplazamiento a propósito
+      var b = document.body, de = document.documentElement;
+      b.classList.remove("modal-open");
+      b.style.overflow = ""; b.style.paddingRight = "";
+      de.style.overflow = ""; de.style.paddingRight = "";
+      document.querySelectorAll(".modal-backdrop").forEach(function (el) { el.remove(); });
+    }, 400);
+  }
+  $(document).on("shiny:idle", unlock);
 })();
