@@ -363,9 +363,14 @@ mod_datos_server <- function(id, ctx) {
           class = "d-flex justify-content-between align-items-start mb-2",
           div(tags$strong(mr_label(s)), span(class = "small-2", paste0(" · ", tipo(s$type), " · ", length(s$vars),
                                                                          if (length(s$vars) == 1) " variable" else " variables")),
-              div(class = "small-2", paste(s$vars, collapse = ", "))),
-          if (ctx$can_edit()) tags$a(href = "#", class = "small-2",
-            onclick = sprintf("caringAction('%s', '%s', 'drop', event)", ns("mr_action"), s$name), "quitar")))),
+              div(class = "small-2", paste(s$vars, collapse = ", ")),
+              if (length(s$merge)) div(class = "small-2 c-mr-merged", "Opciones juntadas: ",
+                paste(vapply(s$merge, function(g) paste0("«", g$name, "» = ", paste(g$from, collapse = " + ")), ""), collapse = "; "))),
+          if (ctx$can_edit()) div(class = "c-vg-acts small-2",
+            tags$a(href = "#", onclick = sprintf("caringAction('%s', %s, 'merge', event)", ns("mr_action"), js_str(s$name)),
+                   `aria-label` = paste("Juntar opciones de", mr_label(s)), "juntar opciones"),
+            tags$a(href = "#", onclick = sprintf("caringAction('%s', %s, 'drop', event)", ns("mr_action"), js_str(s$name)),
+                   `aria-label` = paste("Quitar el conjunto", mr_label(s)), "quitar"))))),
         # Desplegable cerrado por defecto: solo se abre si la persona lo pulsa.
         if (length(sug) && ctx$can_edit()) tags$details(class = "c-mr-sug mt-2",
           tags$summary(tags$strong("Sugerencias"), paste0(" (", length(sug), ")"),
@@ -411,6 +416,105 @@ mod_datos_server <- function(id, ctx) {
         g <- mr_suggest(data())[[as.integer(a$id)]]
         req(g)
         mr_modal(g)
+      } else if (a$action == "merge") {
+        if (!ctx$can_edit()) return(showNotification("Este proyecto es de solo lectura.", type = "error"))
+        merge_modal(a$id)
+      }
+    })
+
+    # Juntar opciones de un conjunto ------------------------------------------------------
+    # Se arrastran las opciones a grupos; cada grupo pasa a ser una sola opción con el
+    # nombre que se le ponga (igual que una de ellas o nuevo). Queda en el historial.
+    mm <- reactiveValues(name = NULL, init = NULL, k = 1, gen = 0)
+    mm_id <- function(what, i) paste0("mm_", what, "_", mm$gen, "_", i)   # cada ventana con sus propios campos
+    merge_modal <- function(name) {
+      set <- mrsets(data())[[name]]
+      req(set)
+      mm$name <- name
+      mm$gen <- mm$gen + 1
+      mm$init <- set$merge %||% list()
+      mm$k <- max(1, length(mm$init))
+      showModal(modalDialog(title = paste0("Juntar opciones de «", mr_label(set), "»"), size = "l", easyClose = TRUE,
+        p(class = "c-hint", "Arrastra a un mismo grupo las opciones que quieras contar como una sola y ponle nombre: ",
+          "puede ser el de una de ellas o uno nuevo. Un caso cuenta en la nueva opción si marcó cualquiera de las que juntas. ",
+          "Si dejas el nombre vacío, se llama como la primera. No se cambia ninguna variable."),
+        uiOutput(ns("mm_body")),
+        div(class = "d-flex gap-2 mb-3",
+          actionButton(ns("mm_more"), "+ Otro grupo", class = "btn-light-c btn-sm"),
+          if (length(mm$init)) actionButton(ns("mm_clear"), "Deshacer todas las uniones", class = "btn-light-c btn-sm")),
+        uiOutput(ns("mm_preview")),
+        footer = tagList(modalButton("Cancelar"), actionButton(ns("mm_save"), "Guardar", class = "btn-primary"))))
+    }
+
+    # Estado actual de los grupos (lo que hay en pantalla o, la primera vez, lo guardado)
+    mm_groups <- function() {
+      lapply(seq_len(mm$k), function(i) {
+        from <- input[[mm_id("grp", i)]]
+        nm <- input[[mm_id("name", i)]]
+        ini <- if (i <= length(mm$init)) mm$init[[i]]
+        list(name = trimws(nm %||% ini$name %||% ""), from = if (is.null(from)) ini$from %||% character() else unlist(from))
+      })
+    }
+
+    output$mm_body <- renderUI({
+      req(mm$name)
+      d <- data(); set <- mrsets(d)[[mm$name]]
+      req(set)
+      k <- mm$k
+      grupos <- isolate(mm_groups())
+      opts <- mr_raw_options(d, set)
+      n <- colSums(mr_incidences(d, utils::modifyList(set, list(merge = NULL))), na.rm = TRUE)
+      lab <- function(o) stats::setNames(lapply(o, function(x) paste0(x, " (", fmt_int(n[[x]]), ")")), o)
+      en_grupo <- unlist(lapply(grupos, `[[`, "from"))
+      div(class = "c-bucket",
+        do.call(sortable::bucket_list, c(
+          list(header = NULL, group_name = ns(paste0("mm_bucket_", mm$gen)), orientation = "vertical",
+               sortable::add_rank_list("Sin juntar", labels = lab(setdiff(opts, en_grupo)), input_id = ns(mm_id("grp", 0)))),
+          lapply(seq_len(k), function(i) sortable::add_rank_list(
+            paste("Grupo", i), labels = lab(intersect(grupos[[i]]$from, opts)), input_id = ns(mm_id("grp", i)))))),
+        div(class = "row g-2",
+          lapply(seq_len(k), function(i) div(class = "col-6 col-md-4",
+            textInput(ns(mm_id("name", i)), paste("Nombre del grupo", i), value = grupos[[i]]$name,
+                      placeholder = "como la primera")))))
+    })
+
+    observeEvent(input$mm_more, { mm$init <- mm_groups(); mm$k <- min(mm$k + 1, 12) })
+    observeEvent(input$mm_clear, {
+      req(mm$name)
+      if (ctx$upsert_step(list(op = "mrset_merge", name = mm$name, merge = list()),
+                          same = function(prev) identical(prev$op, "mrset_merge") && identical(prev$name, mm$name))) {
+        removeModal(); showNotification("Se han deshecho las uniones del conjunto.", type = "message")
+      }
+    })
+
+    mm_draft <- reactive({
+      g <- Filter(function(x) length(x$from), mm_groups())
+      list(op = "mrset_merge", name = mm$name, merge = g)
+    })
+
+    output$mm_preview <- renderUI({
+      req(mm$name)
+      s <- mm_draft()
+      if (!length(s$merge)) return(p(class = "c-hint", "Arrastra al menos una opción a un grupo."))
+      x <- tryCatch(mr_set_merge(data(), s), error = function(e) e)
+      if (inherits(x, "error")) return(div(class = "c-msg-error", error_es(x)))
+      f <- mr_freq(x, mrsets(x)[[mm$name]])
+      nuevas <- vapply(mrsets(x)[[mm$name]]$merge, `[[`, "", "name")
+      tab <- data.frame(Opción = ifelse(f$opcion %in% nuevas, paste0(f$opcion, " ●"), f$opcion),
+                        n = fmt_int(round(f$n)), `% de casos` = fmt_pct(f$pct_casos), check.names = FALSE)
+      div(tags$strong("Vista previa"), span(class = "small-2", " · ● opción juntada"),
+          div(style = "max-height:260px; overflow:auto", html_table(tab)))
+    })
+
+    observeEvent(input$mm_save, {
+      req(mm$name)
+      s <- mm_draft()
+      x <- tryCatch(mr_set_merge(data(), s), error = function(e) e)
+      if (inherits(x, "error")) return(showNotification(error_es(x), type = "error", duration = 8))
+      s$merge <- mrsets(x)[[mm$name]]$merge %||% list()          # con los nombres ya completados
+      if (ctx$upsert_step(s, same = function(prev) identical(prev$op, "mrset_merge") && identical(prev$name, mm$name))) {
+        removeModal()
+        showNotification("Opciones juntadas. Se usan así en Explorar y en Redes.", type = "message")
       }
     })
 

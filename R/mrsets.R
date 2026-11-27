@@ -40,6 +40,7 @@ mr_option_names <- function(d, vars) {
 
 # Variables de un conjunto que no tienen ninguna respuesta marcada (para avisar).
 mr_empty_options <- function(d, set) {
+  set$merge <- NULL                       # se avisa por cada variable, antes de juntar opciones
   m <- mr_incidences(d, set)
   vacias <- names(m)[colSums(m, na.rm = TRUE) == 0]
   if (!length(vacias) || set$type != "dicotomias") return(list(opciones = vacias, detalle = character()))
@@ -129,7 +130,75 @@ mr_incidences <- function(d, set) {
     colnames(m) <- opts
     m[is.na(x), ] <- NA
   }
-  as.data.frame(m, check.names = FALSE)
+  mr_apply_merge(as.data.frame(m, check.names = FALSE), set$merge)
+}
+
+#' Tabla 0/1 de un conjunto de respuesta múltiple, como la calcula CARING.
+#'
+#' Una columna por opción y una fila por caso (NA si el caso no contestó a ninguna).
+#' La usa el script de R que genera CARING.
+#' @param datos data.frame leído con read_any()
+#' @param tipo "dicotomias", "categorias" o "texto"
+#' @param variables variables del conjunto
+#' @param valor en las dicotomías, el valor que cuenta como marcado
+#' @param sep en las de texto, el separador de las opciones
+#' @export
+conjunto_respuesta_multiple <- function(datos, tipo, variables, valor = NULL, sep = ";") {
+  mr_incidences(datos, list(type = tipo, vars = variables, value = valor, sep = sep))
+}
+
+# Opciones juntadas ------------------------------------------------------------------------------
+# set$merge: lista de list(name, from). Cada grupo sustituye a las opciones de `from` por
+# una sola, `name`, que vale 1 si el caso marcó cualquiera de ellas. Va en el sitio de
+# la primera que junta. `name` puede ser el de una de ellas o uno nuevo, y con una sola
+# opción en `from` sirve para cambiarle el nombre. Las que ya no existen se ignoran.
+mr_apply_merge <- function(m, merge) {
+  for (g in merge %||% list()) {
+    src <- intersect(unlist(g$from), names(m))
+    if (!length(src)) next
+    nueva <- do.call(pmax, c(unname(as.list(m[src])), na.rm = TRUE))
+    pos <- min(match(src, names(m)))
+    resto <- m[setdiff(names(m), src)]
+    antes <- seq_len(pos - 1)
+    m <- cbind(resto[antes], stats::setNames(data.frame(nueva), g$name), resto[setdiff(seq_along(resto), antes)])
+  }
+  m
+}
+
+# Opciones de un conjunto antes de juntar nada
+mr_raw_options <- function(d, set) { set$merge <- NULL; names(mr_incidences(d, set)) }
+
+# Comprueba y normaliza las uniones de un conjunto (lo usa el paso mrset_merge).
+mr_merge_check <- function(d, set, merge) {
+  opts <- mr_raw_options(d, set)
+  out <- list()
+  usadas <- character()
+  for (g in merge %||% list()) {
+    from <- unique(as.character(unlist(g$from)))
+    if (!length(from)) next
+    nm <- trimws(g$name %||% "")
+    if (!nzchar(nm)) nm <- from[1]
+    falta <- setdiff(from, opts)
+    if (length(falta)) stop("El conjunto «", set$name, "» no tiene la opción «", falta[1], "».")
+    rep <- intersect(from, usadas)
+    if (length(rep)) stop("La opción «", rep[1], "» está en dos grupos.")
+    usadas <- c(usadas, from)
+    out[[length(out) + 1]] <- list(name = nm, from = from)
+  }
+  nombres <- vapply(out, `[[`, "", "name")
+  if (anyDuplicated(nombres)) stop("Dos opciones nuevas se llaman igual: «", nombres[duplicated(nombres)][1], "».")
+  choca <- intersect(nombres, setdiff(opts, usadas))
+  if (length(choca)) stop("Ya hay una opción «", choca[1], "» que no estás juntando: ponle otro nombre o júntala también.")
+  out
+}
+
+mr_set_merge <- function(d, s) {
+  sets <- mrsets(d)
+  if (is.null(sets[[s$name]])) stop("No existe el conjunto «", s$name, "».")
+  m <- mr_merge_check(d, sets[[s$name]], s$merge)
+  sets[[s$name]]$merge <- if (length(m)) m
+  attr(d, "mrsets") <- sets
+  d
 }
 
 # Sugerencias: grupos de variables con el mismo prefijo y las mismas categorías.

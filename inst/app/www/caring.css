@@ -492,3 +492,4 @@ a:focus-visible, button:focus-visible, .btn:focus-visible, [tabindex]:focus-visi
 .c-group-adder { margin-top: -6px; margin-bottom: 10px; }
 .c-group-adder select, .c-group-adder .selectize-input { font-size: 13px; color: var(--c-blue-dark); }
 .c-help-h { font-size: 16px; margin: 18px 0 6px; }
+.c-mr-merged { margin-top: 2px; color: var(--c-blue-dark); overflow-wrap: anywhere; }

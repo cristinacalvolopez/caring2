@@ -84,11 +84,12 @@ mod_project_server <- function(id, con, state, base_url = reactive("")) {
     }
     # Pasos que guardan un estado completo (grupos de variables, ocultas): si el último
     # paso es del mismo tipo, se sustituye en vez de añadir otro.
-    upsert_step <- function(step) {
+    # same(prev): si el último paso cuenta como el mismo (por defecto, el mismo tipo de paso)
+    upsert_step <- function(step, same = function(prev) identical(prev$op, step$op)) {
       if (!can_edit(proj$permiso)) { showNotification("Este proyecto es de solo lectura.", type = "error"); return(FALSE) }
       r <- proj$recipe
       n <- length(r)
-      if (n && identical(r[[n]]$op, step$op)) {
+      if (n && isTRUE(same(r[[n]]))) {
         nr <- r; nr[[n]] <- step
         test <- tryCatch(apply_recipe(proj$original, nr, proj$dir), error = function(e) e)
         if (inherits(test, "error")) { notify_error(test); return(FALSE) }

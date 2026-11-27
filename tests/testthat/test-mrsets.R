@@ -140,8 +140,9 @@ test_that("el script de R reproduce los conjuntos", {
   x <- apply_recipe(d, r)
   esperado <- mr_incidences(x, mrsets(x)$medios)
   obtenido <- env$conjuntos$medios
-  expect_equal(unname(obtenido[-(1:5), ]), unname(as.matrix(esperado[-(1:5), ])))
-  expect_equal(sort(colnames(env$conjuntos$menc)), sort(names(mr_incidences(x, mrsets(x)$menc))))
+  # la misma tabla que usa CARING, con los mismos nombres de opción y los mismos NA
+  expect_equal(obtenido, esperado)
+  expect_equal(env$conjuntos$menc, mr_incidences(x, mrsets(x)$menc))
 })
 
 test_that("SPSS con codificaciones mezcladas: el valor marcado cuenta por etiqueta y por código", {
@@ -185,4 +186,45 @@ test_that("mensaje claro si la red se queda sin opciones", {
   x <- apply_recipe(d, list(list(op = "mrset", name = "m", type = "dicotomias", vars = c("a", "b"), value = "Sí")))
   expect_error(net_build(x, list(type = "multiple", vars = "mr:m")), "Sin ninguna respuesta: Dos")
   expect_equal(mr_empty_options(x, mrsets(x)$m)$opciones, "Dos")
+})
+
+test_that("juntar opciones de un conjunto en una nueva (con nombre nuevo o el de una de ellas)", {
+  d <- read_any(demo_sav())
+  base <- list(op = "mrset", name = "af", type = "texto", vars = "aficiones", sep = ";")
+  x <- apply_recipe(d, list(base))
+  m0 <- mr_incidences(x, mrsets(x)$af)
+  # cine + música -> «Cultura»; un caso cuenta si marcó cualquiera de las dos
+  j <- list(op = "mrset_merge", name = "af", merge = list(list(name = "Cultura", from = c("cine", "música")),
+                                                         list(name = "", from = c("viajes", "deporte"))))
+  y <- apply_recipe(d, list(base, j))
+  m <- mr_incidences(y, mrsets(y)$af)
+  expect_equal(names(m), c("Cultura", "viajes", "lectura", "videojuegos"))    # va en el sitio de la primera; sin nombre, el de la primera
+  expect_equal(sum(m$Cultura, na.rm = TRUE), sum(pmax(m0$cine, m0[["música"]]), na.rm = TRUE))
+  expect_equal(sum(is.na(m$Cultura)), sum(is.na(m0$cine)))
+  f <- mr_freq(y, mrsets(y)$af)
+  expect_true("Cultura" %in% f$opcion)
+  # con el nombre de una de ellas
+  z <- apply_recipe(d, list(base, list(op = "mrset_merge", name = "af", merge = list(list(name = "cine", from = c("cine", "videojuegos"))))))
+  expect_equal(names(mr_incidences(z, mrsets(z)$af))[1], "cine")
+  # una sola opción: cambiarle el nombre
+  r <- apply_recipe(d, list(base, list(op = "mrset_merge", name = "af", merge = list(list(name = "Leer", from = "lectura")))))
+  expect_true("Leer" %in% names(mr_incidences(r, mrsets(r)$af)))
+  # errores
+  expect_error(apply_recipe(d, list(base, list(op = "mrset_merge", name = "af", merge = list(list(name = "X", from = "nada"))))), "no tiene la opción")
+  expect_error(apply_recipe(d, list(base, list(op = "mrset_merge", name = "af",
+    merge = list(list(name = "A", from = "cine"), list(name = "B", from = "cine"))))), "dos grupos")
+  expect_error(apply_recipe(d, list(base, list(op = "mrset_merge", name = "af", merge = list(list(name = "viajes", from = "cine"))))), "Ya hay una opción")
+  expect_error(apply_recipe(d, list(base, list(op = "mrset_merge", name = "otro", merge = list()))), "No existe")
+  # sin uniones vuelve a las opciones originales
+  w <- apply_recipe(d, list(base, j, list(op = "mrset_merge", name = "af", merge = list())))
+  expect_equal(names(mr_incidences(w, mrsets(w)$af)), names(m0))
+  # descripción y script: el script da las mismas columnas, también con dos pasos seguidos
+  expect_match(step_label(j), "Juntar opciones del conjunto «af»")
+  rec <- list(base, j, list(op = "compute", to = "k", expr = "1"),
+              list(op = "mrset_merge", name = "af", merge = list(list(name = "Cultura", from = c("cine", "música", "lectura")))))
+  code <- recipe_to_code(rec, "x.sav")
+  env <- new.env(); env$datos <- d
+  eval(parse(text = sub("datos <- caring2::read_any\\([^)]*\\)", "", code)), env)
+  final <- apply_recipe(d, rec)
+  expect_equal(colnames(env$conjuntos$af), names(mr_incidences(final, mrsets(final)$af)))
 })

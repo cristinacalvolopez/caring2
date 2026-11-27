@@ -20,7 +20,7 @@ apply_recipe <- function(d, recipe, dir = NULL) {
 
 # Atributos de los datos que no son variables y pasos que los cambian
 meta_ops <- list(
-  mrsets  = c("mrset", "mrset_drop", "drop", "rename", "rename_many"),
+  mrsets  = c("mrset", "mrset_drop", "mrset_merge", "drop", "rename", "rename_many"),
   vgroups = c("vgroups", "drop", "rename", "rename_many"),
   hidden  = c("hidden", "drop", "rename", "rename_many"))
 
@@ -90,6 +90,7 @@ apply_step <- function(d, s, dir = NULL) {
     vgroups = vg_set(d, s),
     hidden = hidden_set(d, s),
     mrset = mr_add(d, s),
+    mrset_merge = mr_set_merge(d, s),
     mrset_drop = {
       sets <- mrsets(d)
       if (is.null(sets[[s$name]])) stop("No existe el conjunto «", s$name, "».")
@@ -323,6 +324,10 @@ step_label <- function(s) {
                    switch(s$type, dicotomias = "dicotomías", categorias = "categorías", "texto"), ", ",
                    length(unlist(s$vars)), if (length(unlist(s$vars)) == 1) " variable)" else " variables)"),
     mrset_drop = paste0("Quitar el conjunto «", s$name, "»"),
+    mrset_merge = if (!length(s$merge)) paste0("Deshacer las opciones juntadas del conjunto «", s$name, "»") else
+      paste0("Juntar opciones del conjunto «", s$name, "»: ",
+             paste(utils::head(vapply(s$merge, function(g) paste0("«", g$name, "» (", length(unlist(g$from)), ")"), ""), 4), collapse = ", "),
+             if (length(s$merge) > 4) ", …"),
     cis = paste0("Armonizar las variables sociodemográficas del CIS (estudio ", s$estudio, ")"),
     rename_many = paste0("Renombrar ", length(s$map), if (length(s$map) == 1) " variable" else " variables",
                          if (nzchar(s$pattern %||% "")) paste0(" («", s$pattern, "» → «", s$replacement %||% "", "»)")),
@@ -394,20 +399,27 @@ step_code <- function(s) {
     filter = paste0("datos <- subset(datos, ", s$expr, ")"),
     drop = paste0("datos <- datos[setdiff(names(datos), ", qv(s$vars), ")]"),
     mrset = {
+      # la misma tabla 0/1 que usa CARING: una columna por opción, con el mismo nombre
       v <- unlist(s$vars)
-      switch(s$type,
-        dicotomias = c(paste0("# Cada variable es una opción; cuenta como marcada si vale ", q(s$value)),
-                       paste0("conjuntos[[", q(s$name), "]] <- sapply(datos[", qv(v), "], function(x) as.integer(as.character(x) == ", q(s$value), "))")),
-        categorias = c("# Cada variable es una mención; las opciones son sus categorías",
-                       paste0("menciones <- lapply(datos[", qv(v), "], as.character)"),
-                       "opciones <- unique(unlist(lapply(menciones, function(x) unique(stats::na.omit(x)))))",
-                       paste0("conjuntos[[", q(s$name), "]] <- sapply(opciones, function(o) as.integer(Reduce(`|`, lapply(menciones, function(x) !is.na(x) & x == o))))")),
-        c(paste0("# Opciones separadas por ", q(s$sep %||% ";"), " en una variable de texto"),
-          paste0("partes <- strsplit(as.character(", col(v[1]), "), ", q(s$sep %||% ";"), ", fixed = TRUE)"),
-          "opciones <- sort(unique(trimws(unlist(partes))))",
-          paste0("conjuntos[[", q(s$name), "]] <- t(sapply(partes, function(p) as.integer(opciones %in% trimws(p))))")))
+      c(switch(s$type,
+          dicotomias = paste0("# Cada variable es una opción; cuenta como marcada si vale ", q(s$value)),
+          categorias = "# Cada variable es una mención; las opciones son sus categorías",
+          paste0("# Opciones separadas por ", q(s$sep %||% ";"), " en una variable de texto")),
+        paste0("conjuntos[[", q(s$name), "]] <- caring2::conjunto_respuesta_multiple(datos, ", q(s$type), ", ", qv(v),
+               if (s$type == "dicotomias") paste0(", valor = ", q(s$value)),
+               if (s$type == "texto") paste0(", sep = ", q(s$sep %||% ";")), ")"))
     },
     mrset_drop = paste0("conjuntos[[", q(s$name), "]] <- NULL"),
+    mrset_merge = c(paste0("# Juntar opciones: la nueva vale 1 si el caso marcó cualquiera de las que junta"),
+      # cada paso parte del conjunto sin juntar (el paso guarda todas las uniones del conjunto)
+      paste0("if (is.null(sin_juntar[[", q(s$name), "]])) sin_juntar[[", q(s$name), "]] <- conjuntos[[", q(s$name), "]]"),
+      paste0("m <- as.data.frame(sin_juntar[[", q(s$name), "]], check.names = FALSE)"),
+      unlist(lapply(s$merge, function(g) c(
+        paste0("juntas <- ", qv(unlist(g$from))),
+        "nueva <- do.call(pmax, c(unname(as.list(m[juntas])), na.rm = TRUE))",
+        "pos <- min(match(juntas, names(m))); m <- m[setdiff(names(m), juntas)]; antes <- seq_len(pos - 1)",
+        paste0("m <- cbind(m[antes], stats::setNames(data.frame(nueva), ", q(g$name), "), m[setdiff(seq_along(m), antes)])")))),
+      paste0("conjuntos[[", q(s$name), "]] <- m")),
     rename_many = {
       m <- unlist(s$map)
       c(if (nzchar(s$pattern %||% "")) paste0("# Con la expresión «", s$pattern, "» → «", s$replacement %||% "", "»"),
@@ -441,10 +453,16 @@ recipe_to_code <- function(recipe, archivo = "datos.sav") {
     "",
     paste0("datos <- caring2::read_any(", q(archivo), ")"),
     if (any(vapply(recipe, function(s) s$op == "mrset", logical(1)))) "conjuntos <- list()   # conjuntos de respuesta múltiple (tablas 0/1)",
+    if (any(vapply(recipe, function(s) s$op == "mrset_merge", logical(1)))) "sin_juntar <- list()  # los conjuntos antes de juntar opciones",
     ""
   )
   for (i in seq_along(recipe)) {
-    out <- c(out, paste0("# ", i, ". ", step_label(recipe[[i]])), step_code(recipe[[i]]), "")
+    s <- recipe[[i]]
+    out <- c(out, paste0("# ", i, ". ", step_label(s)), step_code(s),
+             # un conjunto definido de nuevo empieza sin opciones juntadas
+             if (s$op %in% c("mrset", "mrset_drop") && any(vapply(recipe, function(x) x$op == "mrset_merge", logical(1))))
+               paste0("sin_juntar[[", q(s$name), "]] <- NULL"),
+             "")
   }
   paste(out, collapse = "\n")
 }
