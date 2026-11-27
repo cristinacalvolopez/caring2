@@ -71,6 +71,7 @@ mod_redes_server <- function(id, ctx) {
     })
 
     group_adder_server(input, session, "vars_grp", "vars", data, function() session$userData$vars_choices)
+    group_adder_server(input, session, "passive_grp", "passive", data, function() session$userData$passive_choices)
 
     output$var_inputs <- renderUI({
       d <- data()
@@ -157,6 +158,7 @@ mod_redes_server <- function(id, ctx) {
             selectizeInput(ns("passive"), "Variables pasivas (opcional)", choices = todas_vars, multiple = TRUE,
                            selected = intersect(isolate(input$passive), todas_vars),
                            options = list(plugins = list("remove_button"), placeholder = "Categóricas o numéricas…")),
+            { session$userData$passive_choices <- todas_vars; group_adder_ui(ns("passive_grp"), d) },
             p(class = "c-hint", style = "margin-top:-8px",
               "No intervienen en los ejes: se describen sobre ellos (se ven al pulsar cada punto). Pueden ser categóricas o numéricas. Se excluyen los casos con datos perdidos en cualquiera de ellas."))
         },

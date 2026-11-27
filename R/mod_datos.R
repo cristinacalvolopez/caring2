@@ -767,3 +767,38 @@ reactable_es <- function() {
     searchPlaceholder = "Buscar…", noData = "Sin resultados", pageInfo = "{rowStart}–{rowEnd} de {rows}",
     pagePrevious = "‹ Anterior", pageNext = "Siguiente ›", pageSizeOptions = "Mostrar {rows}")
 }
+
+# Ordenación con memoria: al pulsar una columna, los empates se resuelven por las columnas
+# ordenadas antes (hasta 3), en vez de volver al orden original. Mayús+clic sigue funcionando.
+# Mientras haya una ordenación aparece encima de la tabla un botón «Orden original» que la quita.
+reactable_sort_memoria <- function(tabla) {
+  htmlwidgets::onRender(tabla, "function(el) {
+    var id = el.id, hist = [], intentos = 0;
+    var btn = el.parentNode.querySelector('button.c-sort-reset[data-for=\"' + id + '\"]');
+    if (!btn) {
+      btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'btn btn-link btn-sm c-sort-reset';
+      btn.setAttribute('data-for', id);
+      btn.style.cssText = 'padding:0 0 4px;font-size:12.5px';
+      btn.textContent = '↺ Orden original';
+      el.parentNode.insertBefore(btn, el);
+    }
+    btn.hidden = true;
+    btn.onclick = function() { hist = []; Reactable.getInstance(id).setSortBy([]); };
+    function enganchar() {
+      var inst = null;
+      try { inst = Reactable.getInstance(id); } catch (e) {}
+      if (!inst) { if (intentos++ < 50) setTimeout(enganchar, 100); return; }
+      Reactable.onStateChange(id, function(state) {
+        var s = state.sorted || [];
+        btn.hidden = s.length === 0;
+        if (s.length !== 1) { hist = s.slice(0, 3); return; }
+        var p = s[0];
+        hist = [p].concat(hist.filter(function(h) { return h.id !== p.id; })).slice(0, 3);
+        if (hist.length > 1) Reactable.getInstance(id).setSortBy(hist);
+      });
+    }
+    enganchar();
+  }")
+}

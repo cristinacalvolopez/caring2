@@ -62,10 +62,9 @@ datos_vars_server <- function(input, output, session, ctx, sel) {
     vi <- vtable()
     ps <- isolate(preselect())
     if (!is.null(ps)) isolate(preselect(NULL))
-    vi$perdidos_txt <- fmt_pct(vi$perdidos)
     hid <- vi$oculta
-    reactable::reactable(
-      vi[c("nombre", "etiqueta", "tipo", "valores", "perdidos_txt", "grupos")],
+    reactable_sort_memoria(reactable::reactable(
+      vi[c("nombre", "etiqueta", "tipo", "valores", "perdidos", "grupos")],
       selection = "multiple", searchable = TRUE, highlight = TRUE,
       # la casilla marca la variable; el resto de la fila la abre en el editor
       onClick = reactable::JS(sprintf(
@@ -84,12 +83,14 @@ datos_vars_server <- function(input, output, session, ctx, sel) {
         etiqueta = reactable::colDef(name = "Etiqueta", minWidth = 150),
         tipo = reactable::colDef(name = "Tipo", minWidth = 95, cell = function(v) type_chip(v)),
         valores = reactable::colDef(name = "Valores", minWidth = 120),
-        perdidos_txt = reactable::colDef(name = "Perdidos", minWidth = 80, align = "right",
+        # se pasa el número (para que ordene como número) y se formatea solo al mostrarlo
+        perdidos = reactable::colDef(name = "Perdidos", minWidth = 80, align = "right",
+          cell = function(v) fmt_pct(v),
           style = function(v, i) if (vi$perdidos[i] > 0.05) list(color = "#B3261E") else NULL),
         grupos = reactable::colDef(name = "Grupos", minWidth = 110, show = any(nzchar(vi$grupos)),
                                    style = list(fontSize = "12.5px", color = "#1F5FC4"))
       )
-    )
+    ))
   })
 
   observeEvent(input$pick, sel(input$pick))
